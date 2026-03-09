@@ -133,8 +133,8 @@ const calcACWR = (loads) => {
   return chronic > 0 ? parseFloat((acute / chronic).toFixed(2)) : 1.0;
 };
 
-const acwrColor = (v) => v < 0.8 ? C.blue : v <= 1.3 ? C.green : v <= 1.5 ? C.yellow : C.red;
-const acwrLabel = (v) => v < 0.8 ? "Carga baja" : v <= 1.3 ? "Zona óptima" : v <= 1.5 ? "Precaución" : "Riesgo lesión";
+const acwrColor = (v) => (v < 0.8 || v > 1.5) ? C.red : (v < 1.0 || v > 1.3) ? C.yellow : C.green;
+const acwrLabel = (v) => v < 0.8 ? "Carga muy baja" : v < 1.0 ? "Precaución — baja" : v <= 1.3 ? "Zona óptima" : v <= 1.5 ? "Precaución — alta" : "Riesgo lesión";
 
 // ═══════════════════════════════════════════════════════
 //  DEMO SEED DATA (used until real CSVs are uploaded)
@@ -394,8 +394,8 @@ export default function PerfLoad() {
     status: (() => {
       const a = calcACWR(p.loads);
       const w = wellnessData.find(w => w.jugador === p.nombre);
-      if (a > 1.5 || (w && (w.fatiga >= 7 || w.dolor >= 6))) return "risk";
-      if (a > 1.3 || (w && (w.fatiga >= 5 || w.dolor >= 4))) return "caution";
+      if (a < 0.8 || a > 1.5 || (w && (w.fatiga >= 7 || w.dolor >= 6))) return "risk";
+      if (a < 1.0 || a > 1.3 || (w && (w.fatiga >= 5 || w.dolor >= 4))) return "caution";
       return "optimal";
     })(),
     wellness: wellnessData.find(w => w.jugador === p.nombre) || null,
@@ -986,7 +986,7 @@ export default function PerfLoad() {
     const riesgo = playersWithACWR.filter(p => p.status === "risk");
     const precaucion = playersWithACWR.filter(p => p.status === "caution");
     const optimos = playersWithACWR.filter(p => p.status === "optimal");
-    const acwrAltos = playersWithACWR.filter(p => p.acwr > 1.5);
+    const acwrRiesgo = playersWithACWR.filter(p => p.acwr < 0.8 || p.acwr > 1.5);
 
     const TrafficLight = ({ status, count }) => {
       const cfg = { optimal: { color: C.green, label: "DISPONIBLE", icon: "✓" },
@@ -1015,16 +1015,16 @@ export default function PerfLoad() {
         </div>
 
         {/* ACWR Alert Banner */}
-        {acwrAltos.length > 0 && (
+        {acwrRiesgo.length > 0 && (
           <div style={{ background:`${C.red}10`, border:`1px solid ${C.red}30`, borderRadius:12,
             padding:"14px 18px", marginBottom:18, display:"flex", alignItems:"center", gap:12 }}>
             <div style={{ fontSize:20 }}>🚨</div>
             <div>
               <div style={{ fontSize:13, fontWeight:700, color:C.red }}>
-                ALERTA ACWR — {acwrAltos.length} jugador{acwrAltos.length>1?"es":""} en zona de riesgo de lesión
+                ALERTA ACWR — {acwrRiesgo.length} jugador{acwrRiesgo.length>1?"es":""} en zona de riesgo
               </div>
               <div style={{ fontSize:11, color:C.muted, marginTop:3 }}>
-                {acwrAltos.map(p=>p.nombre).join(", ")} · ACWR {'>'} 1.5 — Se recomienda reducir carga
+                {acwrRiesgo.map(p=>`${p.nombre} (${p.acwr})`).join(", ")} · ACWR fuera de rango seguro (0.8–1.5)
               </div>
             </div>
           </div>
