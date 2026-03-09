@@ -206,7 +206,7 @@ const DropZone = ({ label, icon, color, accept, onFile, loading, compact }) => {
 export default function PerfLoad() {
   const [page, setPage]           = useState("dashboard");
   const [players, setPlayers]     = useState(SEED_PLAYERS);
-  const [wellness]   = useState(SEED_WELLNESS);
+  const [wellness, setWellness]   = useState(SEED_WELLNESS);
   const [catRaw, setCatRaw]       = useState(null);   // raw catapult rows
   const [wysRaw, setWysRaw]       = useState(null);   // raw wyscout rows
   const [loading, setLoading]     = useState({});
@@ -299,7 +299,11 @@ export default function PerfLoad() {
 
   const statusCount = playersWithACWR.reduce((a,p)=>{ a[p.status]=(a[p.status]||0)+1; return a; },{});
   const avgACWR = parseFloat((playersWithACWR.reduce((a,p)=>a+p.acwr,0)/playersWithACWR.length).toFixed(2));
-  
+  const teamTotalLoad = players.reduce((a,p)=>a+(p.loads[p.loads.length-1]||0),0);
+
+  const TIPOS_SESION = ["MD-4","MD-3","MD-2","MD-1","MD","MD+1"];
+  const POSICIONES = ["POR","DC","LTD","LTI","MCD","MCI","MCO","EXD","EXI","DEL"];
+  const teamLoad = teamTotalLoad;
 
   const statusCfg = {
     optimal: { label:"Óptimo",     color:C.green  },
@@ -343,8 +347,10 @@ export default function PerfLoad() {
 
   const navItems = [
     { id:"dashboard", icon:"⬡", label:"Dashboard"       },
+    { id:"semaforo",  icon:"◉", label:"Semáforo DT"     },
     { id:"plantilla", icon:"◈", label:"Plantilla"       },
-    { id:"carga",     icon:"◉", label:"Control Carga"   },
+    { id:"carga",     icon:"▸", label:"Control Carga"   },
+    { id:"informes",  icon:"⊞", label:"Informes PDF"    },
     { id:"importar",  icon:"↑", label:"Importar Datos"  },
     { id:"wellness",  icon:"♡", label:"Wellness / RPE"  },
   ];
@@ -872,6 +878,469 @@ export default function PerfLoad() {
     </div>
   );
 
+  // ── SEMÁFORO DT ──
+  const PageSemaforo = () => {
+    const riesgo = playersWithACWR.filter(p => p.status === "risk");
+    const precaucion = playersWithACWR.filter(p => p.status === "caution");
+    const optimos = playersWithACWR.filter(p => p.status === "optimal");
+    const acwrAltos = playersWithACWR.filter(p => p.acwr > 1.5);
+
+    const TrafficLight = ({ status, count }) => {
+      const cfg = { optimal: { color: C.green, label: "DISPONIBLE", icon: "✓" },
+                    caution:  { color: C.yellow, label: "PRECAUCIÓN", icon: "⚠" },
+                    risk:     { color: C.red,    label: "NO DISPONIBLE", icon: "✕" } };
+      const c = cfg[status];
+      return (
+        <div style={{ textAlign:"center" }}>
+          <div style={{ width:70, height:70, borderRadius:"50%", background:`${c.color}20`,
+            border:`3px solid ${c.color}`, display:"flex", alignItems:"center",
+            justifyContent:"center", margin:"0 auto 8px", fontSize:28, fontWeight:900, color:c.color }}>
+            {count}
+          </div>
+          <div style={{ fontSize:9, fontWeight:800, letterSpacing:"0.1em", color:c.color }}>{c.label}</div>
+        </div>
+      );
+    };
+
+    return (
+      <div>
+        <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", marginBottom:24 }}>
+          <div>
+            <div style={{ fontSize:24, fontWeight:800, letterSpacing:"-0.025em" }}>Semáforo de Disponibilidad</div>
+            <div style={{ fontSize:12, color:C.muted, marginTop:3 }}>Reporte para el cuerpo técnico · Hoy</div>
+          </div>
+        </div>
+
+        {/* ACWR Alert Banner */}
+        {acwrAltos.length > 0 && (
+          <div style={{ background:`${C.red}10`, border:`1px solid ${C.red}30`, borderRadius:12,
+            padding:"14px 18px", marginBottom:18, display:"flex", alignItems:"center", gap:12 }}>
+            <div style={{ fontSize:20 }}>🚨</div>
+            <div>
+              <div style={{ fontSize:13, fontWeight:700, color:C.red }}>
+                ALERTA ACWR — {acwrAltos.length} jugador{acwrAltos.length>1?"es":""} en zona de riesgo de lesión
+              </div>
+              <div style={{ fontSize:11, color:C.muted, marginTop:3 }}>
+                {acwrAltos.map(p=>p.nombre).join(", ")} · ACWR {'>'} 1.5 — Se recomienda reducir carga
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Traffic lights summary */}
+        <div style={{ ...S.card({ marginBottom:18 }) }}>
+          <div style={{ display:"flex", justifyContent:"space-around", alignItems:"center", padding:"12px 0" }}>
+            <TrafficLight status="optimal" count={optimos.length}/>
+            <div style={{ width:1, height:60, background:C.border }}/>
+            <TrafficLight status="caution" count={precaucion.length}/>
+            <div style={{ width:1, height:60, background:C.border }}/>
+            <TrafficLight status="risk" count={riesgo.length}/>
+          </div>
+          <div style={{ textAlign:"center", padding:"10px 0 4px", fontSize:11, color:C.muted }}>
+            Total plantilla: <strong style={{color:C.text}}>{players.length} jugadores</strong> ·
+            Disponibilidad: <strong style={{color:C.green}}>{Math.round((optimos.length/players.length)*100)}%</strong>
+          </div>
+        </div>
+
+        <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:12 }}>
+          {/* Disponibles */}
+          <div style={S.card()}>
+            <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:14 }}>
+              <div style={{ width:10, height:10, borderRadius:"50%", background:C.green }}/>
+              <div style={{ fontSize:11, fontWeight:700, color:C.green, textTransform:"uppercase", letterSpacing:"0.08em" }}>
+                Disponibles ({optimos.length})
+              </div>
+            </div>
+            <div style={{ display:"flex", flexDirection:"column", gap:6 }}>
+              {optimos.map(p => (
+                <div key={p.id} style={{ display:"flex", alignItems:"center", gap:10, padding:"8px 10px",
+                  borderRadius:8, background:`${C.green}08`, border:`1px solid ${C.green}18` }}>
+                  <div style={{ flex:1 }}>
+                    <div style={{ fontSize:12, fontWeight:600 }}>{p.nombre}</div>
+                    <div style={{ fontSize:10, color:C.muted }}>{p.pos}</div>
+                  </div>
+                  <div style={{ fontSize:11, fontFamily:"monospace", color:C.green, fontWeight:700 }}>
+                    ACWR {p.acwr}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Precaución + Riesgo */}
+          <div style={{ display:"flex", flexDirection:"column", gap:12 }}>
+            {precaucion.length > 0 && (
+              <div style={S.card()}>
+                <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:14 }}>
+                  <div style={{ width:10, height:10, borderRadius:"50%", background:C.yellow }}/>
+                  <div style={{ fontSize:11, fontWeight:700, color:C.yellow, textTransform:"uppercase", letterSpacing:"0.08em" }}>
+                    Precaución ({precaucion.length})
+                  </div>
+                </div>
+                <div style={{ display:"flex", flexDirection:"column", gap:6 }}>
+                  {precaucion.map(p => {
+                    const w = p.wellness;
+                    return (
+                      <div key={p.id} style={{ display:"flex", alignItems:"center", gap:10, padding:"8px 10px",
+                        borderRadius:8, background:`${C.yellow}08`, border:`1px solid ${C.yellow}25` }}>
+                        <div style={{ flex:1 }}>
+                          <div style={{ fontSize:12, fontWeight:600 }}>{p.nombre}</div>
+                          <div style={{ fontSize:10, color:C.muted }}>
+                            {p.pos} · ACWR {p.acwr}
+                            {w?.fatiga >= 5 ? ` · Fatiga ${w.fatiga}/10` : ""}
+                            {w?.dolor >= 4 ? ` · Dolor ${w.dolor}/10` : ""}
+                          </div>
+                        </div>
+                        <Tag label="⚠ Monitoreo" color={C.yellow}/>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
+            {riesgo.length > 0 && (
+              <div style={S.card()}>
+                <div style={{ display:"flex", alignItems:"center", gap:8, marginBottom:14 }}>
+                  <div style={{ width:10, height:10, borderRadius:"50%", background:C.red }}/>
+                  <div style={{ fontSize:11, fontWeight:700, color:C.red, textTransform:"uppercase", letterSpacing:"0.08em" }}>
+                    No disponibles ({riesgo.length})
+                  </div>
+                </div>
+                <div style={{ display:"flex", flexDirection:"column", gap:6 }}>
+                  {riesgo.map(p => {
+                    const w = p.wellness;
+                    return (
+                      <div key={p.id} style={{ display:"flex", alignItems:"center", gap:10, padding:"8px 10px",
+                        borderRadius:8, background:`${C.red}08`, border:`1px solid ${C.red}25` }}>
+                        <div style={{ flex:1 }}>
+                          <div style={{ fontSize:12, fontWeight:600 }}>{p.nombre}</div>
+                          <div style={{ fontSize:10, color:C.muted }}>
+                            {p.pos} · ACWR {p.acwr}
+                            {w?.fatiga >= 7 ? ` · Fatiga crítica ${w.fatiga}/10` : ""}
+                            {w?.dolor >= 6 ? ` · Dolor alto ${w.dolor}/10` : ""}
+                          </div>
+                        </div>
+                        <Tag label="✕ Riesgo" color={C.red}/>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
+            {riesgo.length === 0 && precaucion.length === 0 && (
+              <div style={{ ...S.card(), textAlign:"center", padding:"32px" }}>
+                <div style={{ fontSize:32, marginBottom:8 }}>✅</div>
+                <div style={{ fontSize:14, fontWeight:700, color:C.green }}>Plantilla en óptimas condiciones</div>
+                <div style={{ fontSize:11, color:C.muted, marginTop:4 }}>Sin jugadores en riesgo hoy</div>
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  // ── INFORMES PDF ──
+  const PageInformes = () => {
+    const [tipoInforme, setTipoInforme] = useState("individual");
+    const [jugSelec, setJugSelec] = useState(playersWithACWR[0]?.id || null);
+    const [jugMulti, setJugMulti] = useState([]);
+    const [tipoSesion, setTipoSesion] = useState("MD-1");
+    const [generando, setGenerando] = useState(false);
+    const [preview, setPreview] = useState(false);
+
+    const jugadorActual = playersWithACWR.find(p => p.id === jugSelec);
+    const jugadoresSelec = tipoInforme === "individual"
+      ? (jugadorActual ? [jugadorActual] : [])
+      : jugMulti.length > 0
+        ? playersWithACWR.filter(p => jugMulti.includes(p.id))
+        : playersWithACWR;
+
+    const toggleJugMulti = (id) => {
+      setJugMulti(prev => prev.includes(id) ? prev.filter(x=>x!==id) : [...prev, id]);
+    };
+
+    const generarPDF = () => {
+      setGenerando(true);
+      setTimeout(() => {
+        setGenerando(false);
+        setPreview(true);
+      }, 1800);
+    };
+
+    const MetricRow = ({ label, val, prev, color, unit="" }) => {
+      const diff = prev ? val - prev : 0;
+      const up = diff > 0;
+      return (
+        <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center",
+          padding:"7px 0", borderBottom:`1px solid ${C.border}` }}>
+          <span style={{ fontSize:11, color:C.muted }}>{label}</span>
+          <div style={{ display:"flex", alignItems:"center", gap:8 }}>
+            {prev !== undefined && (
+              <span style={{ fontSize:10, color: up ? C.green : C.red }}>
+                {up ? "▲" : "▼"} {Math.abs(diff).toFixed(0)}{unit}
+              </span>
+            )}
+            <span style={{ fontSize:13, fontWeight:700, fontFamily:"monospace", color }}>{val}{unit}</span>
+          </div>
+        </div>
+      );
+    };
+
+    return (
+      <div>
+        <div style={{ fontSize:24, fontWeight:800, letterSpacing:"-0.025em", marginBottom:6 }}>Informes PDF</div>
+        <div style={{ fontSize:12, color:C.muted, marginBottom:22 }}>
+          Genera informes individuales o grupales por tipo de sesión
+        </div>
+
+        <div style={{ display:"grid", gridTemplateColumns:"320px 1fr", gap:16 }}>
+          {/* Panel de configuración */}
+          <div style={{ display:"flex", flexDirection:"column", gap:12 }}>
+            {/* Tipo de informe */}
+            <div style={S.card()}>
+              <div style={{ ...S.sec, marginBottom:10 }}>Tipo de informe</div>
+              <div style={{ display:"flex", gap:6 }}>
+                {[["individual","Individual"],["grupal","Grupal / Equipo"]].map(([v,l]) => (
+                  <button key={v} onClick={() => setTipoInforme(v)} style={{
+                    flex:1, padding:"8px", borderRadius:9, fontSize:11, fontWeight:700,
+                    cursor:"pointer", border:`1px solid ${tipoInforme===v?C.green+"50":C.border}`,
+                    background: tipoInforme===v ? `${C.green}15` : "transparent",
+                    color: tipoInforme===v ? C.green : C.muted }}>
+                    {l}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Tipo de sesión */}
+            <div style={S.card()}>
+              <div style={{ ...S.sec, marginBottom:10 }}>Tipo de sesión</div>
+              <div style={{ display:"flex", flexWrap:"wrap", gap:6 }}>
+                {TIPOS_SESION.map(t => (
+                  <button key={t} onClick={() => setTipoSesion(t)} style={{
+                    padding:"5px 12px", borderRadius:8, fontSize:11, fontWeight:700,
+                    cursor:"pointer", border:`1px solid ${tipoSesion===t?C.blue+"50":C.border}`,
+                    background: tipoSesion===t ? `${C.blue}15` : "transparent",
+                    color: tipoSesion===t ? C.blue : C.muted }}>
+                    {t}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Selección jugadores */}
+            <div style={S.card()}>
+              <div style={{ ...S.sec, marginBottom:10 }}>
+                {tipoInforme === "individual" ? "Jugador" : `Jugadores (${jugMulti.length===0?"todos":jugMulti.length})`}
+              </div>
+              {tipoInforme === "individual" ? (
+                <div style={{ display:"flex", flexDirection:"column", gap:4, maxHeight:260, overflowY:"auto" }}>
+                  {playersWithACWR.map(p => (
+                    <div key={p.id} onClick={() => setJugSelec(p.id)} style={{
+                      display:"flex", alignItems:"center", gap:8, padding:"7px 10px",
+                      borderRadius:8, cursor:"pointer",
+                      background: jugSelec===p.id ? `${statusCfg[p.status].color}15` : "rgba(255,255,255,0.02)",
+                      border:`1px solid ${jugSelec===p.id ? statusCfg[p.status].color+"40" : C.border}` }}>
+                      <div style={{ width:6, height:6, borderRadius:"50%", background:statusCfg[p.status].color, flexShrink:0 }}/>
+                      <div style={{ flex:1 }}>
+                        <div style={{ fontSize:11, fontWeight:600 }}>{p.nombre}</div>
+                        <div style={{ fontSize:9, color:C.muted }}>{p.pos}</div>
+                      </div>
+                      <div style={{ fontSize:10, fontFamily:"monospace", color:acwrColor(p.acwr) }}>{p.acwr}</div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div>
+                  <div style={{ display:"flex", flexDirection:"column", gap:4, maxHeight:200, overflowY:"auto", marginBottom:8 }}>
+                    {playersWithACWR.map(p => (
+                      <div key={p.id} onClick={() => toggleJugMulti(p.id)} style={{
+                        display:"flex", alignItems:"center", gap:8, padding:"7px 10px",
+                        borderRadius:8, cursor:"pointer",
+                        background: jugMulti.includes(p.id) ? `${C.green}10` : "rgba(255,255,255,0.02)",
+                        border:`1px solid ${jugMulti.includes(p.id) ? C.green+"40" : C.border}` }}>
+                        <div style={{ width:14, height:14, borderRadius:4, border:`1.5px solid ${jugMulti.includes(p.id)?C.green:C.muted}`,
+                          background: jugMulti.includes(p.id) ? C.green : "transparent",
+                          display:"flex", alignItems:"center", justifyContent:"center", fontSize:9, color:"#000", flexShrink:0 }}>
+                          {jugMulti.includes(p.id) ? "✓" : ""}
+                        </div>
+                        <div style={{ flex:1, fontSize:11, fontWeight:600 }}>{p.nombre}</div>
+                        <div style={{ fontSize:9, color:C.muted }}>{p.pos}</div>
+                      </div>
+                    ))}
+                  </div>
+                  <button onClick={() => setJugMulti([])} style={{
+                    width:"100%", padding:"6px", borderRadius:8, fontSize:10, fontWeight:700,
+                    background:"transparent", border:`1px solid ${C.border}`, color:C.muted, cursor:"pointer" }}>
+                    Seleccionar todos
+                  </button>
+                </div>
+              )}
+            </div>
+
+            {/* Botón generar */}
+            <button onClick={generarPDF} disabled={generando} style={{
+              width:"100%", padding:"12px", borderRadius:12, fontSize:13, fontWeight:800,
+              background: generando ? `${C.green}40` : C.green,
+              color:"#06080f", border:"none", cursor:generando?"not-allowed":"pointer",
+              letterSpacing:"0.04em" }}>
+              {generando ? "⏳ Generando informe..." : "⊞ Generar Informe PDF"}
+            </button>
+          </div>
+
+          {/* Vista previa del informe */}
+          <div style={{ ...S.card(), minHeight:500 }}>
+            {!preview ? (
+              <div style={{ display:"flex", flexDirection:"column", alignItems:"center",
+                justifyContent:"center", height:"100%", minHeight:460, gap:12, color:C.muted }}>
+                <div style={{ fontSize:40 }}>⊞</div>
+                <div style={{ fontSize:14, fontWeight:600 }}>Vista previa del informe</div>
+                <div style={{ fontSize:11, textAlign:"center", maxWidth:260, lineHeight:1.6 }}>
+                  Selecciona el tipo de informe, sesión y jugadores, luego haz clic en "Generar"
+                </div>
+              </div>
+            ) : (
+              <div>
+                {/* Informe header */}
+                <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start",
+                  marginBottom:20, paddingBottom:16, borderBottom:`1px solid ${C.border}` }}>
+                  <div>
+                    <div style={{ fontSize:9, fontWeight:700, letterSpacing:"0.12em", color:C.green, textTransform:"uppercase" }}>
+                      ⬡ PERFLOAD · Informe de Carga
+                    </div>
+                    <div style={{ fontSize:18, fontWeight:800, marginTop:4 }}>
+                      {tipoInforme === "individual" ? jugadorActual?.nombre : `Informe Grupal — ${jugadoresSelec.length} jugadores`}
+                    </div>
+                    <div style={{ fontSize:11, color:C.muted, marginTop:3 }}>
+                      Sesión: <span style={{ color:C.blue, fontWeight:700 }}>{tipoSesion}</span> ·
+                      {new Date().toLocaleDateString("es-CO", {weekday:"long",year:"numeric",month:"long",day:"numeric"})}
+                    </div>
+                  </div>
+                  <button onClick={() => {
+                    const content = document.getElementById("informe-preview");
+                    if (content) {
+                      const w = window.open("","_blank");
+                      w.document.write(`<html><head><title>PerfLoad Informe</title>
+                        <style>body{font-family:sans-serif;padding:24px;background:#fff;color:#111;}
+                        table{width:100%;border-collapse:collapse;margin:12px 0;}
+                        th{background:#f0f0f0;padding:8px;text-align:left;font-size:11px;}
+                        td{padding:8px;border-bottom:1px solid #eee;font-size:12px;}
+                        h1{font-size:20px;margin-bottom:4px;}h2{font-size:14px;color:#555;margin:16px 0 8px;}
+                        .badge{display:inline-block;padding:2px 8px;border-radius:4px;font-size:10px;font-weight:700;}
+                        </style></head><body>${content.innerHTML}</body></html>`);
+                      w.document.close();
+                      w.print();
+                    }
+                  }} style={{
+                    padding:"8px 16px", borderRadius:9, fontSize:11, fontWeight:700,
+                    background:`${C.green}18`, color:C.green, border:`1px solid ${C.green}30`,
+                    cursor:"pointer" }}>
+                    🖨 Imprimir / PDF
+                  </button>
+                </div>
+
+                <div id="informe-preview">
+                  {tipoInforme === "individual" && jugadorActual ? (
+                    <div>
+                      {/* Individual report */}
+                      <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr 1fr", gap:10, marginBottom:16 }}>
+                        {[
+                          { label:"ACWR", val:jugadorActual.acwr, color:acwrColor(jugadorActual.acwr) },
+                          { label:"Estado", val:statusCfg[jugadorActual.status].label, color:statusCfg[jugadorActual.status].color },
+                          { label:"Posición", val:jugadorActual.pos, color:C.text },
+                        ].map((k,i) => (
+                          <div key={i} style={{ background:"rgba(255,255,255,0.03)", borderRadius:10,
+                            padding:"12px", border:`1px solid ${C.border}`, textAlign:"center" }}>
+                            <div style={{ fontSize:20, fontWeight:900, color:k.color, fontFamily:"monospace" }}>{k.val}</div>
+                            <div style={{ fontSize:9, color:C.muted, marginTop:3, textTransform:"uppercase", letterSpacing:"0.08em" }}>{k.label}</div>
+                          </div>
+                        ))}
+                      </div>
+
+                      <div style={{ ...S.sec, marginBottom:10 }}>Métricas GPS · Sesión {tipoSesion}</div>
+                      {[
+                        { label:"Distancia total", val:jugadorActual.cat?.distancia || Math.round((jugadorActual.loads.slice(-1)[0]||380)*28), prev: Math.round((jugadorActual.loads.slice(-2,-1)[0]||360)*28), color:C.green, unit:" m" },
+                        { label:"HSR (>18 km/h)", val:jugadorActual.cat?.hsr || 1240, prev:1180, color:C.blue, unit:" m" },
+                        { label:"Sprint (>24 km/h)", val:jugadorActual.cat?.sprint || 380, prev:420, color:C.purple, unit:" m" },
+                        { label:"Aceleraciones", val:jugadorActual.cat?.acels || 48, prev:44, color:C.yellow, unit:"" },
+                        { label:"Player Load", val:jugadorActual.loads.slice(-1)[0] || 380, prev:jugadorActual.loads.slice(-2,-1)[0]||360, color:C.orange, unit:" UA" },
+                      ].map((m,i) => <MetricRow key={i} {...m}/>)}
+
+                      <div style={{ ...S.sec, marginTop:16, marginBottom:10 }}>Tendencia carga — últimos 7 días</div>
+                      <div style={{ display:"flex", gap:6 }}>
+                        {jugadorActual.loads.slice(-7).map((v,i) => {
+                          const max = Math.max(...jugadorActual.loads.slice(-7));
+                          const pct = (v/max)*100;
+                          return (
+                            <div key={i} style={{ flex:1, textAlign:"center" }}>
+                              <div style={{ height:50, display:"flex", alignItems:"flex-end", justifyContent:"center" }}>
+                                <div style={{ width:"70%", height:`${pct}%`, minHeight:4,
+                                  background:acwrColor(jugadorActual.acwr), borderRadius:"3px 3px 0 0", opacity:0.8 }}/>
+                              </div>
+                              <div style={{ fontSize:8, color:C.muted, marginTop:3 }}>D{i+1}</div>
+                              <div style={{ fontSize:9, fontFamily:"monospace", color:C.text }}>{v}</div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  ) : (
+                    <div>
+                      {/* Group report */}
+                      <div style={{ display:"grid", gridTemplateColumns:"repeat(3,1fr)", gap:10, marginBottom:16 }}>
+                        {[
+                          { label:"Jugadores", val:jugadoresSelec.length, color:C.text },
+                          { label:"ACWR Promedio", val:parseFloat((jugadoresSelec.reduce((a,p)=>a+p.acwr,0)/jugadoresSelec.length).toFixed(2)), color:acwrColor(jugadoresSelec.reduce((a,p)=>a+p.acwr,0)/jugadoresSelec.length) },
+                          { label:"En riesgo", val:jugadoresSelec.filter(p=>p.status==="risk").length, color:C.red },
+                        ].map((k,i) => (
+                          <div key={i} style={{ background:"rgba(255,255,255,0.03)", borderRadius:10,
+                            padding:"12px", border:`1px solid ${C.border}`, textAlign:"center" }}>
+                            <div style={{ fontSize:24, fontWeight:900, color:k.color, fontFamily:"monospace" }}>{k.val}</div>
+                            <div style={{ fontSize:9, color:C.muted, marginTop:3, textTransform:"uppercase", letterSpacing:"0.08em" }}>{k.label}</div>
+                          </div>
+                        ))}
+                      </div>
+
+                      <div style={{ ...S.sec, marginBottom:10 }}>Resumen plantilla · Sesión {tipoSesion}</div>
+                      <div style={{ overflowX:"auto" }}>
+                        <table style={{ width:"100%", borderCollapse:"collapse" }}>
+                          <thead>
+                            <tr>{["Jugador","Pos","ACWR","P.Load","Distancia","HSR","Estado"].map(h=>(
+                              <th key={h} style={S.th}>{h}</th>
+                            ))}</tr>
+                          </thead>
+                          <tbody>
+                            {jugadoresSelec.map(p => {
+                              const sc = statusCfg[p.status];
+                              return (
+                                <tr key={p.id}>
+                                  <td style={{ ...S.td, fontWeight:700 }}>{p.nombre}</td>
+                                  <td style={{ ...S.td, color:C.muted }}>{p.pos}</td>
+                                  <td style={{ ...S.td, fontFamily:"monospace", fontWeight:700, color:acwrColor(p.acwr) }}>{p.acwr}</td>
+                                  <td style={{ ...S.td, fontFamily:"monospace" }}>{p.loads.slice(-1)[0]||"—"}</td>
+                                  <td style={{ ...S.td, fontFamily:"monospace" }}>{p.cat?.distancia?.toLocaleString()||"—"}</td>
+                                  <td style={{ ...S.td, fontFamily:"monospace" }}>{p.cat?.hsr||"—"}</td>
+                                  <td style={S.td}><Tag label={sc.label} color={sc.color}/></td>
+                                </tr>
+                              );
+                            })}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+    );
+  };
+
   return (
     <div style={S.app}>
       <style>{`
@@ -909,6 +1378,8 @@ export default function PerfLoad() {
               <span>{item.label}</span>
               {item.id==="importar" && (catRaw||wysRaw||gConnected) &&
                 <span style={{marginLeft:"auto",width:6,height:6,borderRadius:"50%",background:C.green}}/>}
+              {item.id==="semaforo" && playersWithACWR.some(p=>p.acwr>1.5) &&
+                <span style={{marginLeft:"auto",width:6,height:6,borderRadius:"50%",background:C.red}}/>}
             </div>
           ))}
         </nav>
@@ -929,8 +1400,10 @@ export default function PerfLoad() {
       <main style={S.main}>
         <style>{`@keyframes fadeIn{from{opacity:0;transform:translateY(-6px)}to{opacity:1;transform:translateY(0)}}`}</style>
         {page==="dashboard" && <PageDashboard/>}
+        {page==="semaforo"  && <PageSemaforo/>}
         {page==="plantilla" && <PagePlantilla/>}
         {page==="carga"     && <PageCarga/>}
+        {page==="informes"  && <PageInformes/>}
         {page==="importar"  && <PageImportar/>}
         {page==="wellness"  && <PageWellness/>}
       </main>
