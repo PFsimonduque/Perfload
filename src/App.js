@@ -12,16 +12,44 @@ const C = {
 };
 
 // ═══════════════════════════════════════════════════════
-//  CSV PARSER
+//  CSV PARSER  — Catapult OpenField format
+//  Los archivos OpenField tienen ~9 filas de metadatos
+//  antes de la fila de encabezados ("Player Name",...)
 // ═══════════════════════════════════════════════════════
+const parseCSVLine = (line) => {
+  // Parser que respeta comillas (campos con comas dentro)
+  const result = [];
+  let cur = "", inQ = false;
+  for (let i = 0; i < line.length; i++) {
+    const c = line[i];
+    if (c === '"') { inQ = !inQ; }
+    else if (c === ',' && !inQ) { result.push(cur.trim()); cur = ""; }
+    else { cur += c; }
+  }
+  result.push(cur.trim());
+  return result;
+};
+
 const parseCSV = (text) => {
-  const lines = text.trim().split(/\r?\n/);
-  if (lines.length < 2) return [];
-  const headers = lines[0].split(",").map(h => h.trim().replace(/"/g, ""));
-  return lines.slice(1).filter(l => l.trim()).map(line => {
-    const vals = line.split(",").map(v => v.trim().replace(/"/g, ""));
-    return Object.fromEntries(headers.map((h, i) => [h, vals[i] ?? ""]));
-  });
+  // Eliminar BOM si existe
+  const clean = text.replace(/^\uFEFF/, "");
+  const lines = clean.split(/\r?\n/);
+  // Buscar la fila que contiene "Player Name" como primera columna
+  let headerIdx = lines.findIndex(l => l.includes('"Player Name"') || l.startsWith("Player Name"));
+  if (headerIdx === -1) {
+    // Fallback: usar primera línea
+    headerIdx = 0;
+  }
+  const headers = parseCSVLine(lines[headerIdx]).map(h => h.replace(/"/g,"").trim());
+  const data = [];
+  for (let i = headerIdx + 1; i < lines.length; i++) {
+    const l = lines[i].trim();
+    if (!l) continue;
+    const vals = parseCSVLine(l).map(v => v.replace(/"/g,"").trim());
+    if (vals.length < 5) continue;
+    data.push(Object.fromEntries(headers.map((h, idx) => [h, vals[idx] ?? ""])));
+  }
+  return data;
 };
 
 // ═══════════════════════════════════════════════════════
@@ -34,17 +62,52 @@ const fuzzy = (row, keywords) => {
   return key ? row[key] : null;
 };
 
-const mapCatapult = (row) => ({
-  jugador:     fuzzy(row, ["player name","athlete","jugador","nombre"]) || "—",
-  fecha:       fuzzy(row, ["date","fecha"]) || "—",
-  distancia:   parseFloat(fuzzy(row, ["total distance","distancia total","distance"]) || 0),
-  hsr:         parseFloat(fuzzy(row, ["high speed","hsr","alta velocidad"]) || 0),
-  sprint:      parseFloat(fuzzy(row, ["sprint distance","sprint"]) || 0),
-  acels:       parseFloat(fuzzy(row, ["acceleration","acel"]) || 0),
-  decels:      parseFloat(fuzzy(row, ["deceleration","decel"]) || 0),
-  playerLoad:  parseFloat(fuzzy(row, ["player load","carga"]) || 0),
-  velMax:      parseFloat(fuzzy(row, ["max velocity","vel max","velocidad"]) || 0),
-});
+// Mapeo exacto para Catapult OpenField Cloud (columnas verificadas con datos reales)
+const mapCatapult = (row) => {
+  // Solo procesar filas de sesión completa (Period Number = 0)
+  const periodNum = row["Period Number"] ?? row["Period_Number"] ?? "";
+  if (periodNum !== "" && periodNum !== "0") return null;
+
+  const pf = (v) => { const n = parseFloat(v); return isNaN(n) ? 0 : n; };
+
+  return {
+    jugador:    (row["Player Name"] || fuzzy(row, ["player name","athlete"]) || "—").trim(),
+    fecha:      row["Date"] || fuzzy(row, ["date","fecha"]) || "—",
+    actividad:  row["Activity Name"] || fuzzy(row, ["activity name"]) || "—",
+    posicion:   row["Position Name"] || fuzzy(row, ["position"]) || "—",
+    duracion:   row["Total Duration"] || "—",
+    // Métricas principales
+    distancia:  pf(row["Total Distance"]),
+    playerLoad: pf(row["Total Player Load"]),
+    plpm:       pf(row["Player Load Per Minute"]),
+    mpm:        pf(row["Meterage Per Minute"]),
+    velMax:     pf(row["Maximum Velocity"]),
+    velProm:    pf(row["Average Velocity"]),
+    hrProm:     pf(row["Avg Heart Rate"]),
+    hrMax:      pf(row["Maximum Heart Rate"]),
+    // Zonas de velocidad (m)
+    vb1:        pf(row["Velocity Band 1 Total Distance"]),
+    vb2:        pf(row["Velocity Band 2 Total Distance"]),
+    vb3:        pf(row["Velocity Band 3 Total Distance"]),
+    vb4:        pf(row["Velocity Band 4 Total Distance"]),
+    hsr:        pf(row["Velocity Band 5 Total Distance"]),  // >19.8 km/h
+    sprint:     pf(row["Velocity Band 6 Total Distance"]),  // >25.2 km/h
+    vb7:        pf(row["Velocity Band 7 Total Distance"]),
+    vb8:        pf(row["Velocity Band 8 Total Distance"]),
+    // Esfuerzos explosivos
+    sprintsN:   pf(row["N Sprints +25km/h"] || row["Velocity B6+ Total # Efforts (Gen2)"] || 0),
+    distSprint: pf(row["Distancia en Sprint (m)"] || 0),
+    acelsH:     pf(row["IMA Accel High"]),
+    acelsM:     pf(row["IMA Accel Medium"]),
+    decelsH:    pf(row["IMA Decel High"]),
+    decelsM:    pf(row["IMA Decel Medium"]),
+    acels:      pf(row["IMA Accel High"]) + pf(row["IMA Accel Medium"]),
+    decels:     pf(row["IMA Decel High"]) + pf(row["IMA Decel Medium"]),
+    // Potencia metabólica
+    peakPower:  pf(row["Peak Meta Power"]),
+    hmld:       pf(row["HMLD (Gen 2)"] || row["High Metabolic Load Distance"] || 0),
+  };
+};
 
 const mapWyscout = (row) => ({
   jugador:     fuzzy(row, ["player","jugador","nombre"]) || "—",
@@ -77,35 +140,35 @@ const acwrLabel = (v) => v < 0.8 ? "Carga baja" : v <= 1.3 ? "Zona óptima" : v 
 //  DEMO SEED DATA (used until real CSVs are uploaded)
 // ═══════════════════════════════════════════════════════
 const SEED_PLAYERS = [
-  { id:1, nombre:"Hector Arango", pos:"POR", edad:23, peso:90.05, talla:194, loads:[210, 255, 249, 196, 227, 257, 240, 260, 254, 188, 257, 181, 240, 213, 250, 209, 204, 240, 249, 250, 240, 230, 199, 209, 199, 246, 229, 181], cat:null, wys:null },
-  { id:2, nombre:"Johan Grisales", pos:"POR", edad:21, peso:78.6, talla:187, loads:[253, 184, 234, 241, 253, 181, 206, 239, 242, 215, 200, 184, 246, 242, 221, 189, 211, 226, 185, 233, 197, 257, 225, 228, 233, 216, 213, 238], cat:null, wys:null },
-  { id:3, nombre:"Edwin Martinez", pos:"LAT", edad:21, peso:86.3, talla:178, loads:[386, 373, 358, 366, 357, 342, 389, 355, 334, 323, 351, 369, 373, 352, 384, 360, 371, 337, 390, 327, 337, 345, 339, 388, 391, 346, 362, 389], cat:null, wys:null },
-  { id:4, nombre:"Deivi Barrios", pos:"DC", edad:21, peso:81.6, talla:183, loads:[349, 374, 323, 327, 321, 324, 321, 311, 319, 336, 301, 356, 359, 314, 303, 366, 321, 362, 356, 338, 363, 310, 332, 378, 320, 341, 339, 309], cat:null, wys:null },
-  { id:5, nombre:"Juan Salinas", pos:"DC", edad:18, peso:93.4, talla:195, loads:[301, 360, 314, 350, 318, 305, 317, 314, 368, 329, 317, 318, 304, 307, 317, 329, 368, 357, 367, 352, 326, 375, 311, 315, 302, 351, 343, 325], cat:null, wys:null },
-  { id:6, nombre:"Victor Lasso", pos:"DC", edad:20, peso:74.2, talla:188, loads:[353, 354, 313, 308, 346, 359, 347, 305, 377, 321, 375, 344, 341, 334, 342, 379, 339, 360, 374, 351, 328, 378, 310, 367, 362, 318, 355, 367], cat:null, wys:null },
-  { id:7, nombre:"Nawer Vargas", pos:"DC", edad:21, peso:88.2, talla:196, loads:[334, 353, 362, 332, 310, 338, 343, 302, 309, 361, 301, 314, 336, 315, 339, 304, 379, 308, 317, 334, 319, 327, 354, 309, 378, 352, 318, 307], cat:null, wys:null },
-  { id:8, nombre:"Felipe Palomino", pos:"LAT", edad:21, peso:80.5, talla:185, loads:[354, 326, 385, 381, 367, 372, 324, 337, 340, 372, 343, 364, 376, 400, 320, 324, 389, 369, 376, 321, 350, 328, 340, 341, 381, 349, 400, 355], cat:null, wys:null },
-  { id:9, nombre:"Jhon Barreiro", pos:"LAT", edad:20, peso:77.4, talla:186, loads:[348, 330, 378, 322, 337, 358, 322, 399, 321, 382, 368, 382, 388, 358, 340, 394, 363, 342, 387, 334, 332, 367, 325, 360, 359, 331, 325, 344], cat:null, wys:null },
-  { id:10, nombre:"Samuel Gonzalez", pos:"LAT", edad:21, peso:71.5, talla:179, loads:[329, 359, 375, 351, 377, 357, 352, 391, 332, 383, 343, 379, 386, 336, 328, 366, 341, 372, 378, 384, 323, 387, 334, 369, 337, 367, 323, 321], cat:null, wys:null },
-  { id:11, nombre:"Jerson Balanta", pos:"LAT", edad:17, peso:73.5, talla:182, loads:[355, 335, 384, 381, 392, 343, 379, 358, 395, 329, 382, 371, 386, 384, 345, 377, 334, 322, 352, 372, 323, 373, 365, 391, 374, 383, 390, 375], cat:null, wys:null },
-  { id:12, nombre:"Luis Mosquera", pos:"LAT", edad:19, peso:71.6, talla:175, loads:[354, 370, 389, 373, 367, 366, 388, 371, 367, 323, 390, 369, 348, 399, 326, 369, 350, 341, 387, 392, 321, 338, 377, 399, 336, 340, 349, 367], cat:null, wys:null },
-  { id:13, nombre:"Santiago Agamez", pos:"MCD", edad:20, peso:73.2, talla:177, loads:[358, 364, 409, 353, 375, 382, 409, 381, 355, 386, 341, 375, 389, 351, 403, 405, 418, 348, 365, 372, 363, 411, 350, 379, 343, 375, 393, 416], cat:null, wys:null },
-  { id:14, nombre:"Dennis Matamba", pos:"MCD", edad:20, peso:79.7, talla:184, loads:[409, 363, 355, 375, 378, 395, 342, 403, 387, 379, 394, 416, 375, 408, 342, 395, 341, 395, 385, 398, 384, 367, 345, 392, 399, 360, 373, 356], cat:null, wys:null },
-  { id:15, nombre:"Yeiner Valoyes", pos:"MCI", edad:20, peso:68, talla:170, loads:[424, 374, 419, 395, 409, 356, 414, 377, 427, 378, 386, 412, 377, 392, 406, 359, 382, 374, 370, 361, 406, 418, 396, 374, 410, 391, 380, 401], cat:null, wys:null },
-  { id:16, nombre:"Kevin Gomez", pos:"MCI", edad:30, peso:72.8, talla:170, loads:[366, 360, 399, 385, 398, 375, 360, 388, 377, 373, 375, 390, 374, 364, 374, 360, 421, 404, 363, 418, 391, 399, 377, 430, 428, 357, 422, 407], cat:null, wys:null },
-  { id:17, nombre:"Jhoiner Zarante", pos:"MCI", edad:18, peso:76.8, talla:178, loads:[386, 375, 364, 418, 364, 392, 420, 387, 386, 393, 411, 357, 420, 420, 368, 369, 355, 386, 372, 412, 425, 381, 371, 373, 368, 417, 377, 368], cat:null, wys:null },
-  { id:18, nombre:"Jader Contreras", pos:"MCO", edad:18, peso:70.9, talla:178, loads:[395, 357, 406, 368, 339, 376, 358, 388, 405, 350, 343, 368, 387, 360, 401, 380, 378, 410, 348, 372, 365, 390, 339, 379, 345, 396, 387, 409], cat:null, wys:null },
-  { id:19, nombre:"Josue Villareal", pos:"MCO", edad:19, peso:75.2, talla:183, loads:[405, 396, 364, 335, 381, 410, 358, 372, 359, 344, 400, 349, 347, 365, 402, 359, 347, 391, 406, 388, 347, 343, 363, 339, 363, 341, 384, 335], cat:null, wys:null },
-  { id:20, nombre:"Maicol Preciado", pos:"EXT", edad:20, peso:69, talla:174, loads:[433, 414, 427, 367, 415, 423, 385, 414, 377, 381, 423, 365, 380, 367, 437, 366, 385, 384, 437, 395, 439, 405, 411, 422, 363, 369, 393, 429], cat:null, wys:null },
-  { id:21, nombre:"Andres Ruiz", pos:"MCI", edad:21, peso:68, talla:170, loads:[373, 355, 352, 378, 368, 381, 360, 402, 413, 367, 423, 366, 361, 425, 387, 405, 362, 385, 427, 413, 399, 423, 364, 430, 386, 387, 396, 409], cat:null, wys:null },
-  { id:22, nombre:"Eder Torres", pos:"MCI", edad:16, peso:68.3, talla:172, loads:[391, 401, 374, 379, 388, 411, 368, 370, 403, 361, 387, 392, 386, 406, 400, 356, 367, 367, 412, 397, 361, 388, 411, 394, 366, 351, 357, 363], cat:null, wys:null },
-  { id:23, nombre:"Sebastian Girado", pos:"EXT", edad:21, peso:68, talla:168, loads:[438, 422, 388, 380, 362, 363, 404, 404, 389, 400, 377, 371, 382, 388, 373, 362, 374, 410, 412, 408, 398, 431, 373, 415, 420, 381, 363, 374], cat:null, wys:null },
-  { id:24, nombre:"Johan Parra", pos:"EXT", edad:21, peso:63, talla:167, loads:[372, 398, 392, 419, 422, 437, 409, 375, 370, 413, 410, 360, 435, 384, 379, 399, 400, 374, 417, 437, 369, 430, 374, 371, 406, 367, 396, 364], cat:null, wys:null },
-  { id:25, nombre:"Jose Hernandez", pos:"EXT", edad:17, peso:71.3, talla:173, loads:[431, 409, 412, 375, 435, 419, 382, 408, 399, 401, 383, 382, 382, 377, 389, 378, 431, 439, 391, 384, 373, 383, 367, 431, 437, 400, 370, 434], cat:null, wys:null },
-  { id:26, nombre:"Faver Aragon", pos:"EXT", edad:20, peso:74.9, talla:178, loads:[374, 431, 419, 390, 403, 421, 396, 383, 370, 417, 390, 430, 388, 395, 421, 390, 381, 426, 424, 409, 419, 374, 372, 382, 375, 393, 395, 411], cat:null, wys:null },
-  { id:27, nombre:"Daniel Lourido", pos:"EXT", edad:21, peso:58.7, talla:170, loads:[374, 379, 379, 398, 435, 422, 420, 411, 382, 360, 434, 390, 393, 415, 428, 363, 386, 408, 393, 427, 438, 393, 421, 383, 431, 408, 404, 435], cat:null, wys:null },
-  { id:28, nombre:"Santiago Arrechea", pos:"DEL", edad:19, peso:85.5, talla:181, loads:[387, 378, 351, 399, 379, 394, 382, 394, 375, 369, 387, 363, 356, 390, 363, 361, 374, 398, 365, 373, 383, 376, 403, 390, 420, 370, 369, 372], cat:null, wys:null },
-  { id:29, nombre:"Sergio Martinez", pos:"DEL", edad:17, peso:74.6, talla:179, loads:[384, 390, 375, 379, 341, 401, 405, 384, 372, 370, 413, 383, 408, 388, 343, 406, 413, 390, 403, 404, 369, 403, 358, 416, 406, 380, 388, 380], cat:null, wys:null },
+  { id:1, nombre:"Hector Arango", pos:"POR", edad:28, peso:90.05, talla:194, loads:[40, 54, 305, 334, 222, 335, 396, 172, 295, 395, 60, 124, 357, 2, 342, 209, 384, 193, 267, 162, 97, 360, 361, 196], cat:null, wys:null },
+  { id:2, nombre:"Johan Grisales", pos:"POR", edad:21, peso:78.6, talla:187, loads:[158, 228, 218, 461, 240, 293, 369, 167, 41, 35, 352, 366, 220, 352, 217, 401, 381, 109, 117, 410, 385, 222, 233, 162, 293, 201, 202, 216, 163, 410, 138, 221, 530, 176, 2, 235, 302, 376], cat:null, wys:null },
+  { id:3, nombre:"Edwin Martinez", pos:"LAT", edad:21, peso:86.3, talla:178, loads:[347, 417, 283, 506, 482, 561, 514, 334, 460, 149, 68, 400, 598, 421, 456, 1000, 288, 565, 320, 141, 984, 189, 201, 910, 150, 326, 308, 732, 289, 338, 318, 311, 913, 256, 798, 346, 856, 171, 394, 879], cat:null, wys:null },
+  { id:4, nombre:"Deivi Barrios", pos:"DC", edad:21, peso:81.6, talla:183, loads:[336, 298, 340, 523, 433, 651, 550, 286, 371, 159, 73, 305, 539, 361, 332, 812, 219, 700, 399, 134, 745, 154, 239, 787, 142, 428, 327, 766, 233, 367, 288, 343, 846, 279, 892, 405, 720, 162, 312, 884], cat:null, wys:null },
+  { id:5, nombre:"Juan Salinas", pos:"DC", edad:18, peso:93.4, talla:195, loads:[285, 345, 303, 223, 420, 413, 467, 364, 387, 185, 62, 365, 542, 411, 411, 871, 282, 573, 325, 201, 869, 237, 290, 747, 170, 322, 345, 808, 324, 430, 325, 359, 868, 236, 784, 378, 735, 138, 130, 617], cat:null, wys:null },
+  { id:6, nombre:"Victor Lasso", pos:"DC", edad:20, peso:74.2, talla:188, loads:[390, 385, 584, 361, 484, 363, 446, 369, 254, 308, 277, 436, 491, 479, 775], cat:null, wys:null },
+  { id:7, nombre:"Nawer Vargas", pos:"DC", edad:21, peso:88.2, talla:196, loads:[268, 345, 338, 547, 401, 494, 507, 336, 288, 153, 62, 226, 547, 301, 175, 208, 270, 601, 333, 184, 828, 234, 264, 772, 130, 350, 322, 658, 316, 423, 319, 183, 276, 551, 217, 371, 340], cat:null, wys:null },
+  { id:8, nombre:"Felipe Palomino", pos:"LAT", edad:21, peso:80.5, talla:185, loads:[934, 319, 491, 205, 150, 607, 182, 805, 249, 261, 800, 276, 313, 309, 688, 286, 581, 432, 786, 139, 338, 703], cat:null, wys:null },
+  { id:9, nombre:"Jhon Barreiro", pos:"LAT", edad:20, peso:77.4, talla:186, loads:[317, 415, 295, 360, 460, 344, 474, 349, 358, 154, 58, 401, 607, 292, 431, 857, 353, 475, 354, 113, 758, 194, 239, 780, 338, 315, 913, 274, 451, 347, 361, 911, 258, 374, 422, 511, 192, 684, 158, 400, 795], cat:null, wys:null },
+  { id:10, nombre:"Samuel Gonzalez", pos:"LAT", edad:21, peso:71.5, talla:179, loads:[140, 87, 375, 517, 213, 248, 556, 238, 350, 684, 322, 160, 359, 225, 267, 283, 327, 312, 319, 442, 336, 176, 293, 460, 251, 411, 337], cat:null, wys:null },
+  { id:11, nombre:"Jerson Balanta", pos:"LAT", edad:17, peso:73.5, talla:182, loads:[267, 308, 293, 222, 352, 431, 247, 226, 133, 64, 409, 519, 311, 181, 503, 234, 305, 582, 330, 133, 234, 322, 298, 291, 318, 492, 319, 439, 295, 314, 372, 293, 380, 354, 148, 325], cat:null, wys:null },
+  { id:12, nombre:"Luis Mosquera", pos:"LAT", edad:19, peso:71.6, talla:175, loads:[411, 451, 324, 371, 482, 415, 624, 364, 430, 166, 87, 429, 654, 414, 433, 454, 261, 461, 650, 408, 128, 294, 233, 283, 340, 336, 165, 465, 364, 512, 374, 357, 523, 188, 339, 680, 4], cat:null, wys:null },
+  { id:13, nombre:"Santiago Agamez", pos:"MCD", edad:20, peso:73.2, talla:177, loads:[347, 363, 381, 299, 520, 569, 533, 409, 493, 137, 74, 415, 784, 406, 420, 602, 283, 385, 411, 169, 703, 228, 268, 867, 126, 368, 333, 756, 443, 427, 345, 1092, 885, 397, 569, 196, 642, 146, 428, 1021], cat:null, wys:null },
+  { id:14, nombre:"Dennis Matamba", pos:"MCD", edad:20, peso:79.7, talla:184, loads:[345, 365, 178, 410, 484, 447, 311, 383, 130, 73, 344, 461, 140, 208, 127, 317, 594, 329, 176, 369, 180, 191, 274, 337, 226, 337, 471, 380, 435, 318, 198, 242, 348, 260, 394, 398, 294], cat:null, wys:null },
+  { id:15, nombre:"Yeiner Valoyes", pos:"MCI", edad:20, peso:68.0, talla:170, loads:[403, 457, 403, 264, 609, 505, 345, 315, 360, 188, 55, 403, 547, 347, 271, 665, 276, 391, 734, 453, 280, 435, 295, 358, 363, 465, 327, 404, 564, 270, 521, 449, 228, 243, 355, 110, 516, 444], cat:null, wys:null },
+  { id:16, nombre:"Kevin Gomez", pos:"MCI", edad:30, peso:72.8, talla:170, loads:[393, 420, 359, 486, 610, 476, 415, 318, 284, 181, 69, 380, 667, 233, 295, 214, 606, 378, 247, 329, 172, 327, 451, 456, 425, 403, 271, 618, 486, 472, 406, 225, 286, 348, 550, 301], cat:null, wys:null },
+  { id:17, nombre:"Jhoiner Zarante", pos:"MCI", edad:18, peso:76.8, talla:178, loads:[297, 334, 232, 502, 563, 505, 348, 406, 116, 71, 385, 621, 365, 324, 878, 220, 137, 394, 187, 184, 266, 327, 274, 115, 386, 393, 313, 160, 273, 287, 297, 98, 361, 274, 256], cat:null, wys:null },
+  { id:18, nombre:"Jader Contreras", pos:"MCO", edad:18, peso:70.9, talla:178, loads:[379, 422, 462, 267, 583, 528, 513, 402, 537, 135, 39, 366, 755, 304, 357, 110, 293, 178, 98, 218, 211, 421, 272, 115, 492, 335, 453, 315, 176, 263, 363, 498, 153, 460], cat:null, wys:null },
+  { id:19, nombre:"Josue Villareal", pos:"MCO", edad:19, peso:75.2, talla:183, loads:[269, 375, 170, 521, 249, 149, 52, 404, 597, 347, 236, 198, 286, 293, 39, 121, 264, 146, 171, 65, 227, 134, 188, 97, 186, 105, 291, 4, 399, 280], cat:null, wys:null },
+  { id:20, nombre:"Maicol Preciado", pos:"EXT", edad:20, peso:69.0, talla:174, loads:[377, 420, 426, 289, 554, 499, 545, 393, 332, 155, 78, 425, 472, 302, 312, 300, 383, 617, 349, 155, 233, 291, 419, 365, 341, 143, 597, 291, 0, 269, 525, 90, 391], cat:null, wys:null },
+  { id:21, nombre:"Andres Ruiz", pos:"MCI", edad:21, peso:68.0, talla:170, loads:[273, 495, 509, 112, 530, 335, 279, 141, 75, 396, 397, 349, 1031, 314, 443, 165, 191, 169, 127, 269, 343, 337, 304, 704, 356, 507, 367, 392, 860, 199, 719, 426, 846, 153, 435, 1108], cat:null, wys:null },
+  { id:22, nombre:"Eder Torres", pos:"MCI", edad:16, peso:68.3, talla:172, loads:[371, 429, 460, 247, 564, 561, 539, 382, 286, 158, 62, 467, 774, 366, 473, 448, 389, 657, 397, 161, 594, 177, 209, 342, 318, 125, 639, 431, 595, 354, 336, 208, 355, 458, 175, 441, 323, 322], cat:null, wys:null },
+  { id:23, nombre:"Sebastian Girado", pos:"EXT", edad:21, peso:68.0, talla:168, loads:[316, 202, 205, 479, 495, 567, 357, 381, 141, 115, 440, 627, 354, 413, 757, 364, 661, 305, 156, 834, 182, 217, 883, 150, 353, 274, 836, 249, 518, 371, 354, 693, 2, 402, 370, 823, 154, 429, 742], cat:null, wys:null },
+  { id:24, nombre:"Johan Parra", pos:"EXT", edad:21, peso:63.0, talla:167, loads:[528, 280, 498, 428, 409, 357, 560, 146, 76, 559, 498, 124, 407, 817, 483, 156, 466, 232, 291, 372, 435, 412, 111, 602, 434, 435, 694, 360, 418, 675, 226, 302, 376, 567, 641, 170, 513, 392], cat:null, wys:null },
+  { id:25, nombre:"Jose Hernandez", pos:"EXT", edad:17, peso:71.3, talla:173, loads:[415, 449, 452, 248, 629, 571, 642, 425, 165, 48, 484, 795, 400, 536, 885, 376, 844, 370, 207, 886, 230, 378, 918, 143, 305, 113, 635, 401, 622, 350, 427, 193, 286, 525, 273, 504, 320, 876], cat:null, wys:null },
+  { id:26, nombre:"Faver Aragon", pos:"EXT", edad:20, peso:74.9, talla:178, loads:[310, 347, 364, 230, 476, 382, 298, 266, 426, 162, 63, 342, 579, 211, 255, 616, 252, 197, 432, 142, 227, 309, 322, 295, 288, 491, 277, 521, 314, 183, 228, 350, 101, 395, 273], cat:null, wys:null },
+  { id:27, nombre:"Daniel Lourido", pos:"EXT", edad:21, peso:58.7, talla:170, loads:[356, 407, 397, 258, 375, 420, 356, 241, 223, 158, 111, 384, 635, 180, 325, 675, 315, 189, 420, 227, 289, 313, 379, 238, 271, 556, 301, 464, 321, 183, 281, 459, 193, 414, 273], cat:null, wys:null },
+  { id:28, nombre:"Santiago Arrechea", pos:"DEL", edad:19, peso:85.5, talla:181, loads:[367, 424, 468, 285, 521, 716, 624, 336, 566, 193, 131, 461, 655, 397, 275, 936, 350, 635, 398, 185, 172, 144, 209, 354, 413, 354, 765, 391, 508, 455, 440, 910, 385, 1015, 665], cat:null, wys:null },
+  { id:29, nombre:"Sergio Martinez", pos:"DEL", edad:17, peso:74.6, talla:179, loads:[665, 324, 202, 219, 292, 599, 152, 306, 126, 467, 364, 26, 0, 559, 318, 332, 276, 185, 338, 472], cat:null, wys:null },
 ];
 
 const SEED_WELLNESS = [
@@ -264,19 +327,26 @@ export default function PerfLoad() {
     const reader = new FileReader();
     reader.onload = e => {
       setTimeout(()=>{
-        const rows = parseCSV(e.target.result).map(mapCatapult);
+        // Filtrar nulls (filas de período que no son sesión completa)
+        const rows = parseCSV(e.target.result).map(mapCatapult).filter(Boolean);
         setCatRaw(rows);
-        // Merge into players by name (fuzzy)
+        // Merge into players: match por apellido o primer nombre (case-insensitive)
         setPlayers(prev => prev.map(p => {
-          const match = rows.find(r =>
-            r.jugador.toLowerCase().includes(p.nombre.toLowerCase().split(" ")[0].toLowerCase())
-          );
+          const nameParts = p.nombre.toLowerCase().split(" ");
+          const match = rows.find(r => {
+            const rName = r.jugador.toLowerCase();
+            // Buscar cualquier parte del nombre del jugador en el nombre del CSV
+            return nameParts.some(part => part.length > 2 && rName.includes(part));
+          });
           if (!match) return p;
-          const newLoads = [...p.loads, match.playerLoad || match.distancia/100].slice(-28);
+          // Usar Player Load como carga diaria, o distancia/100 como fallback
+          const cargaDia = match.playerLoad > 0 ? match.playerLoad : match.distancia / 100;
+          const newLoads = [...p.loads, Math.round(cargaDia)].slice(-28);
           return { ...p, loads: newLoads, cat: match };
         }));
         setLoading(l=>({...l,cat:false}));
-        showFlash(`✓ Catapult cargado · ${rows.length} registros procesados`);
+        const matched = rows.filter(r => r.jugador && r.jugador !== "—").length;
+        showFlash(`✓ Catapult cargado · ${matched} jugadores · ${rows.length} registros`);
       }, 900);
     };
     reader.readAsText(file);
@@ -577,12 +647,14 @@ export default function PerfLoad() {
               {p.cat  && <Tag label="✓ Datos reales" color={C.green}/>}
             </div>
             {[
-              { label:"Distancia total",    val: p.cat ? `${(p.cat.distancia||0).toLocaleString()} m` : `${((p.loads[p.loads.length-1]||350)*28).toLocaleString()} m`, pct:82, color:C.green },
-              { label:"HSR (>18 km/h)",     val: p.cat ? `${p.cat.hsr||0} m`         : "1.240 m", pct:68, color:C.blue  },
-              { label:"Sprint (>24 km/h)",  val: p.cat ? `${p.cat.sprint||0} m`      : "380 m",   pct:55, color:C.purple},
-              { label:"Aceleraciones",      val: p.cat ? `${p.cat.acels||0}`          : "48",      pct:74, color:C.yellow},
-              { label:"Deceleraciones",     val: p.cat ? `${p.cat.decels||0}`         : "52",      pct:78, color:C.orange},
-              { label:"Player Load",        val: p.cat ? `${p.cat.playerLoad||0} UA` : `${p.loads[p.loads.length-1]||380} UA`, pct:76, color:C.red },
+              { label:"Distancia total",      val: p.cat ? `${Math.round(p.cat.distancia||0).toLocaleString()} m`  : "—", pct: p.cat ? Math.min(100,Math.round((p.cat.distancia||0)/120)) : 60, color:C.green },
+              { label:"Player Load",          val: p.cat ? `${Math.round(p.cat.playerLoad||0)} UA`                 : `${p.loads[p.loads.length-1]||380} UA`, pct: p.cat ? Math.min(100,Math.round((p.cat.playerLoad||0)/12)) : 76, color:C.red },
+              { label:"Vel. máx",             val: p.cat ? `${(p.cat.velMax||0).toFixed(1)} km/h`                 : "—", pct: p.cat ? Math.min(100,Math.round((p.cat.velMax||0)*3)) : 65, color:C.blue  },
+              { label:"m/min",                val: p.cat ? `${Math.round(p.cat.mpm||0)} m/min`                    : "—", pct: p.cat ? Math.min(100,Math.round((p.cat.mpm||0)/1.2)) : 70, color:C.purple},
+              { label:"HSR (+19.8 km/h)",     val: p.cat ? `${Math.round(p.cat.hsr||0)} m`                       : "—", pct: p.cat ? Math.min(100,Math.round((p.cat.hsr||0)/6)) : 68, color:C.blue  },
+              { label:"Sprint (+25 km/h)",    val: p.cat ? `${Math.round(p.cat.sprint||0)} m · ${p.cat.sprintsN||0} esf` : "—", pct: p.cat ? Math.min(100,Math.round((p.cat.sprint||0)/3)) : 55, color:C.purple},
+              { label:"Acel (med+alto)",      val: p.cat ? `${p.cat.acelsM||0}m + ${p.cat.acelsH||0}a`           : "48",  pct:74, color:C.yellow},
+              { label:"Decel (med+alto)",     val: p.cat ? `${p.cat.decelsM||0}m + ${p.cat.decelsH||0}a`         : "52",  pct:78, color:C.orange},
             ].map((m,i)=>(
               <div key={i} style={{marginBottom:12}}>
                 <div style={{display:"flex",justifyContent:"space-between",marginBottom:4}}>
