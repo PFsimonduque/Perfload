@@ -1,0 +1,635 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>Orsomarso BCA — Wellness & RPE</title>
+<link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;700;900&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #080c14;
+    --card: #0f1520;
+    --card2: #161e2e;
+    --accent: #00e5ff;
+    --green: #00e676;
+    --yellow: #ffd600;
+    --red: #ff4444;
+    --orange: #ff9800;
+    --purple: #b388ff;
+    --text: #f0f4ff;
+    --muted: #4a5568;
+    --border: #1e2a3a;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Outfit', sans-serif;
+    min-height: 100vh;
+    padding: 0 0 40px;
+  }
+
+  /* Header */
+  .header {
+    background: linear-gradient(135deg, #0a1628 0%, #0f1f3d 100%);
+    border-bottom: 1px solid var(--border);
+    padding: 20px 20px 16px;
+    text-align: center;
+    position: sticky; top: 0; z-index: 10;
+  }
+  .header-logo { font-size: 11px; color: var(--muted); letter-spacing: 3px; text-transform: uppercase; margin-bottom: 4px; }
+  .header-title { font-size: 18px; font-weight: 900; color: var(--accent); letter-spacing: -0.5px; }
+
+  /* Tab selector */
+  .tabs {
+    display: flex; gap: 8px; padding: 16px 16px 0;
+    justify-content: center;
+  }
+  .tab {
+    flex: 1; max-width: 160px;
+    padding: 10px 0; border-radius: 10px; border: none;
+    font-family: 'Outfit', sans-serif; font-size: 13px; font-weight: 700;
+    cursor: pointer; transition: all 0.2s;
+    background: var(--card2); color: var(--muted);
+  }
+  .tab.active-wellness { background: var(--green); color: #000; }
+  .tab.active-rpe      { background: var(--orange); color: #000; }
+
+  /* Main container */
+  .container { padding: 16px; max-width: 480px; margin: 0 auto; }
+
+  /* Card */
+  .card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 20px;
+    margin-bottom: 12px;
+  }
+  .card-title {
+    font-size: 11px; font-weight: 700; letter-spacing: 2px;
+    color: var(--muted); text-transform: uppercase; margin-bottom: 14px;
+  }
+
+  /* Select jugador */
+  select {
+    width: 100%; padding: 14px 16px;
+    background: var(--card2); border: 1px solid var(--border);
+    border-radius: 10px; color: var(--text);
+    font-family: 'Outfit', sans-serif; font-size: 15px; font-weight: 600;
+    appearance: none; cursor: pointer; outline: none;
+  }
+  select:focus { border-color: var(--accent); }
+
+  /* Fecha */
+  input[type="date"] {
+    width: 100%; padding: 12px 16px;
+    background: var(--card2); border: 1px solid var(--border);
+    border-radius: 10px; color: var(--text);
+    font-family: 'Outfit', sans-serif; font-size: 14px;
+    outline: none; cursor: pointer;
+  }
+  input[type="date"]:focus { border-color: var(--accent); }
+  input[type="date"]::-webkit-calendar-picker-indicator { filter: invert(1); opacity: 0.5; }
+
+  /* Slider metric */
+  .metric { margin-bottom: 20px; }
+  .metric-header {
+    display: flex; justify-content: space-between; align-items: center;
+    margin-bottom: 10px;
+  }
+  .metric-label { font-size: 14px; font-weight: 600; color: var(--text); }
+  .metric-icon  { font-size: 18px; }
+  .metric-value {
+    font-size: 28px; font-weight: 900; font-family: monospace;
+    min-width: 36px; text-align: right;
+    transition: color 0.2s;
+  }
+
+  /* Slider */
+  .slider-wrap { position: relative; }
+  input[type="range"] {
+    width: 100%; height: 6px; appearance: none;
+    border-radius: 3px; outline: none; cursor: pointer;
+    background: var(--card2);
+  }
+  input[type="range"]::-webkit-slider-thumb {
+    appearance: none; width: 22px; height: 22px;
+    border-radius: 50%; border: 3px solid var(--bg);
+    cursor: pointer; transition: transform 0.1s;
+  }
+  input[type="range"]::-webkit-slider-thumb:active { transform: scale(1.3); }
+
+  /* Ticks */
+  .ticks {
+    display: flex; justify-content: space-between;
+    padding: 4px 2px 0; 
+  }
+  .tick { font-size: 9px; color: var(--muted); }
+
+  /* RPE buttons */
+  .rpe-grid {
+    display: grid; grid-template-columns: repeat(5, 1fr); gap: 8px;
+    margin-bottom: 8px;
+  }
+  .rpe-btn {
+    padding: 14px 4px; border-radius: 10px; border: 2px solid var(--border);
+    background: var(--card2); color: var(--text);
+    font-family: 'Outfit', sans-serif; font-size: 16px; font-weight: 900;
+    cursor: pointer; transition: all 0.15s; text-align: center;
+  }
+  .rpe-btn:active { transform: scale(0.95); }
+  .rpe-btn.selected { border-color: transparent; color: #000; transform: scale(1.05); }
+  .rpe-label {
+    text-align: center; font-size: 12px; color: var(--muted);
+    margin-top: 8px; min-height: 18px; font-weight: 600;
+  }
+
+  /* Resumen wellness */
+  .summary {
+    display: flex; align-items: center; gap: 12px;
+    padding: 14px 16px;
+    background: var(--card2); border-radius: 12px;
+    border: 1px solid var(--border);
+  }
+  .summary-score {
+    font-size: 36px; font-weight: 900; font-family: monospace;
+    line-height: 1;
+  }
+  .summary-label { font-size: 12px; color: var(--muted); }
+  .summary-bar {
+    flex: 1; height: 8px; background: var(--card);
+    border-radius: 4px; overflow: hidden;
+  }
+  .summary-fill { height: 100%; border-radius: 4px; transition: width 0.3s, background 0.3s; }
+
+  /* Submit */
+  .btn-submit {
+    width: 100%; padding: 16px;
+    border-radius: 12px; border: none;
+    font-family: 'Outfit', sans-serif; font-size: 16px; font-weight: 800;
+    cursor: pointer; transition: all 0.2s; letter-spacing: 0.5px;
+    margin-top: 8px;
+  }
+  .btn-wellness { background: var(--green); color: #000; }
+  .btn-rpe      { background: var(--orange); color: #000; }
+  .btn-submit:active { transform: scale(0.98); opacity: 0.9; }
+  .btn-submit:disabled { opacity: 0.4; cursor: not-allowed; transform: none; }
+
+  /* Success */
+  .success {
+    display: none; text-align: center; padding: 40px 20px;
+  }
+  .success-icon { font-size: 64px; margin-bottom: 16px; }
+  .success-title { font-size: 24px; font-weight: 900; margin-bottom: 8px; }
+  .success-sub { font-size: 14px; color: var(--muted); margin-bottom: 24px; }
+  .btn-nuevo {
+    padding: 12px 28px; border-radius: 10px; border: none;
+    background: var(--card2); color: var(--text);
+    font-family: 'Outfit', sans-serif; font-size: 14px; font-weight: 700;
+    cursor: pointer;
+  }
+
+  /* Sesion input */
+  input[type="text"] {
+    width: 100%; padding: 12px 16px;
+    background: var(--card2); border: 1px solid var(--border);
+    border-radius: 10px; color: var(--text);
+    font-family: 'Outfit', sans-serif; font-size: 14px;
+    outline: none;
+  }
+  input[type="text"]:focus { border-color: var(--orange); }
+
+  .form-section { display: none; }
+  .form-section.active { display: block; }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div class="header-logo">Orsomarso SC · BCA 2026</div>
+  <div class="header-title">Control de Carga</div>
+</div>
+
+<div class="tabs">
+  <button class="tab active-wellness" id="tab-wellness" onclick="setTab('wellness')">🌙 Wellness</button>
+  <button class="tab" id="tab-rpe" onclick="setTab('rpe')">⚡ RPE</button>
+</div>
+
+<div class="container">
+
+  <!-- SUCCESS -->
+  <div class="success" id="success-view">
+    <div class="success-icon" id="success-icon">✅</div>
+    <div class="success-title" id="success-title">¡Registrado!</div>
+    <div class="success-sub" id="success-sub">Tus datos fueron enviados correctamente.</div>
+    <button class="btn-nuevo" onclick="resetForm()">Nuevo registro</button>
+  </div>
+
+  <!-- WELLNESS FORM -->
+  <div class="form-section active" id="wellness-form">
+    <div class="card">
+      <div class="card-title">📋 Información</div>
+      <select id="w-jugador" style="margin-bottom:10px">
+        <option value="">— Selecciona tu nombre —</option>
+      </select>
+      <input type="date" id="w-fecha">
+    </div>
+
+    <div class="card">
+      <div class="card-title">🌙 Calidad del sueño</div>
+      <div class="metric" id="m-sueno">
+        <div class="metric-header">
+          <span class="metric-label">¿Cómo dormiste?</span>
+          <span class="metric-value" id="v-sueno" style="color:var(--muted)">—</span>
+        </div>
+        <div class="slider-wrap">
+          <input type="range" min="1" max="10" value="5" id="s-sueno" oninput="updateSlider('sueno',this.value)">
+        </div>
+        <div class="ticks">
+          <span class="tick">Muy mal</span>
+          <span class="tick">Regular</span>
+          <span class="tick">Excelente</span>
+        </div>
+      </div>
+
+      <div class="card-title" style="margin-top:16px">😴 Nivel de fatiga</div>
+      <div class="metric" id="m-fatiga">
+        <div class="metric-header">
+          <span class="metric-label">¿Qué tan cansado estás?</span>
+          <span class="metric-value" id="v-fatiga" style="color:var(--muted)">—</span>
+        </div>
+        <input type="range" min="1" max="10" value="5" id="s-fatiga" oninput="updateSlider('fatiga',this.value)">
+        <div class="ticks">
+          <span class="tick">Sin fatiga</span>
+          <span class="tick">Moderada</span>
+          <span class="tick">Extrema</span>
+        </div>
+      </div>
+
+      <div class="card-title" style="margin-top:16px">🦵 Dolor muscular</div>
+      <div class="metric">
+        <div class="metric-header">
+          <span class="metric-label">¿Tienes dolores o molestias?</span>
+          <span class="metric-value" id="v-dolor" style="color:var(--muted)">—</span>
+        </div>
+        <input type="range" min="1" max="10" value="5" id="s-dolor" oninput="updateSlider('dolor',this.value)">
+        <div class="ticks">
+          <span class="tick">Sin dolor</span>
+          <span class="tick">Moderado</span>
+          <span class="tick">Severo</span>
+        </div>
+      </div>
+
+      <div class="card-title" style="margin-top:16px">😄 Estado de ánimo</div>
+      <div class="metric">
+        <div class="metric-header">
+          <span class="metric-label">¿Cómo te sientes emocionalmente?</span>
+          <span class="metric-value" id="v-humor" style="color:var(--muted)">—</span>
+        </div>
+        <input type="range" min="1" max="10" value="5" id="s-humor" oninput="updateSlider('humor',this.value)">
+        <div class="ticks">
+          <span class="tick">Muy mal</span>
+          <span class="tick">Bien</span>
+          <span class="tick">Excelente</span>
+        </div>
+      </div>
+
+      <div class="card-title" style="margin-top:16px">🧠 Nivel de estrés</div>
+      <div class="metric">
+        <div class="metric-header">
+          <span class="metric-label">¿Qué tan estresado estás?</span>
+          <span class="metric-value" id="v-estres" style="color:var(--muted)">—</span>
+        </div>
+        <input type="range" min="1" max="10" value="5" id="s-estres" oninput="updateSlider('estres',this.value)">
+        <div class="ticks">
+          <span class="tick">Sin estrés</span>
+          <span class="tick">Moderado</span>
+          <span class="tick">Muy alto</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">📊 Puntaje Wellness</div>
+      <div class="summary">
+        <div>
+          <div class="summary-score" id="wellness-score" style="color:var(--muted)">—</div>
+          <div class="summary-label">/ 50 puntos</div>
+        </div>
+        <div style="flex:1">
+          <div class="summary-bar"><div class="summary-fill" id="wellness-bar" style="width:0%"></div></div>
+          <div style="font-size:11px;color:var(--muted);margin-top:6px;text-align:center" id="wellness-estado">Mueve los sliders</div>
+        </div>
+      </div>
+    </div>
+
+    <button class="btn-submit btn-wellness" id="btn-w" onclick="submitWellness()" disabled>
+      Enviar Wellness
+    </button>
+  </div>
+
+  <!-- RPE FORM -->
+  <div class="form-section" id="rpe-form">
+    <div class="card">
+      <div class="card-title">📋 Información</div>
+      <select id="r-jugador" style="margin-bottom:10px">
+        <option value="">— Selecciona tu nombre —</option>
+      </select>
+      <input type="date" id="r-fecha" style="margin-bottom:10px">
+      <input type="text" id="r-sesion" placeholder="Nombre de la sesión (ej: Fecha 8 vs Real Cartagena)">
+    </div>
+
+    <div class="card">
+      <div class="card-title">⚡ Escala RPE — CR10 Borg</div>
+      <div style="font-size:12px;color:var(--muted);margin-bottom:14px">¿Cuánto esfuerzo te costó la sesión?</div>
+      
+      <div class="rpe-grid" id="rpe-grid">
+        <!-- generado por JS -->
+      </div>
+      <div class="rpe-label" id="rpe-label">Selecciona tu esfuerzo percibido</div>
+
+      <div style="margin-top:16px;padding:12px;background:var(--card2);border-radius:10px;display:none" id="carga-sesion-box">
+        <div style="font-size:11px;color:var(--muted);margin-bottom:4px">CARGA DE SESIÓN (RPE × duración min)</div>
+        <div style="font-size:22px;font-weight:900;font-family:monospace" id="carga-sesion-val">—</div>
+        <div style="font-size:10px;color:var(--muted);margin-top:2px" id="carga-sesion-formula"></div>
+      </div>
+    </div>
+
+    <div class="card" id="duracion-card">
+      <div class="card-title">⏱ Duración de la sesión</div>
+      <div style="display:flex;gap:8px;align-items:center">
+        <input type="range" min="20" max="120" value="60" id="s-duracion" oninput="updateDuracion(this.value)" style="flex:1">
+        <div style="font-size:20px;font-weight:900;font-family:monospace;min-width:55px;text-align:right" id="v-duracion">60 min</div>
+      </div>
+    </div>
+
+    <button class="btn-submit btn-rpe" id="btn-r" onclick="submitRPE()" disabled>
+      Enviar RPE
+    </button>
+  </div>
+
+</div>
+
+<script>
+// ══════════════════════════════════════════
+// CONFIGURACIÓN — reemplaza con tu URL de Apps Script después de desplegar
+// ══════════════════════════════════════════
+const APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbws-dAve2aw71GZhGA58PnNdPY8H3HFqWfLsyHzqyQ5xjPIpyxarmtoyuZJXMbu--pV/exec";
+
+const JUGADORES = [
+  "Hector Arango","Johan Grisales","Edwin Martinez","Deivi Barrios",
+  "Juan Salinas","Victor Lasso","Nawer Vargas","Felipe Palomino",
+  "Jhon Barreiro","Samuel Gonzalez","Jerson Balanta","Luis Mosquera",
+  "Santiago Agamez","Dennis Matamba","Yeiner Valoyes","Kevin Gomez",
+  "Jhoiner Zarante","Jader Contreras","Josue Villareal","Maicol Preciado",
+  "Andres Ruiz","Eder Torres","Sebastian Girado","Johan Parra",
+  "Jose Hernandez","Faver Aragon","Daniel Lourido","Santiago Arrechea",
+  "Sergio Martinez"
+];
+
+const RPE_DATA = [
+  {val:0,  label:"Reposo",         color:"#4a5568"},
+  {val:1,  label:"Muy, muy fácil", color:"#48bb78"},
+  {val:2,  label:"Fácil",          color:"#68d391"},
+  {val:3,  label:"Moderado",       color:"#f6e05e"},
+  {val:4,  label:"Algo difícil",   color:"#f6ad55"},
+  {val:5,  label:"Difícil",        color:"#ed8936"},
+  {val:6,  label:"Difícil +",      color:"#fc8181"},
+  {val:7,  label:"Muy difícil",    color:"#f56565"},
+  {val:8,  label:"Muy difícil +",  color:"#e53e3e"},
+  {val:9,  label:"Extremo",        color:"#c53030"},
+  {val:10, label:"Máximo esfuerzo",color:"#9b2c2c"},
+];
+
+let selectedRPE = null;
+let duracion = 60;
+let sliderValues = { sueno:null, fatiga:null, dolor:null, humor:null, estres:null };
+let currentTab = 'wellness';
+
+// Init
+window.onload = () => {
+  const today = new Date().toISOString().split('T')[0];
+  document.getElementById('w-fecha').value = today;
+  document.getElementById('r-fecha').value = today;
+
+  // Poblar selects
+  ['w-jugador','r-jugador'].forEach(id => {
+    const sel = document.getElementById(id);
+    JUGADORES.forEach(j => {
+      const opt = document.createElement('option');
+      opt.value = j; opt.textContent = j;
+      sel.appendChild(opt);
+    });
+    sel.addEventListener('change', checkSubmit);
+  });
+
+  // RPE grid
+  const grid = document.getElementById('rpe-grid');
+  RPE_DATA.forEach(r => {
+    const btn = document.createElement('button');
+    btn.className = 'rpe-btn';
+    btn.textContent = r.val;
+    btn.dataset.val = r.val;
+    btn.onclick = () => selectRPE(r);
+    grid.appendChild(btn);
+  });
+
+  document.getElementById('r-sesion').addEventListener('input', checkSubmit);
+  updateDuracion(60);
+};
+
+function setTab(tab) {
+  currentTab = tab;
+  document.getElementById('tab-wellness').className = 'tab' + (tab==='wellness' ? ' active-wellness' : '');
+  document.getElementById('tab-rpe').className      = 'tab' + (tab==='rpe'      ? ' active-rpe'      : '');
+  document.getElementById('wellness-form').className = 'form-section' + (tab==='wellness' ? ' active' : '');
+  document.getElementById('rpe-form').className      = 'form-section' + (tab==='rpe'      ? ' active' : '');
+}
+
+// ── Wellness sliders ──────────────────────
+function sliderColor(v) {
+  if (v >= 8) return 'var(--green)';
+  if (v >= 5) return 'var(--yellow)';
+  return 'var(--red)';
+}
+
+// Para fatiga, dolor y estrés el color es inverso (más = peor)
+function sliderColorInv(v) {
+  if (v <= 3) return 'var(--green)';
+  if (v <= 6) return 'var(--yellow)';
+  return 'var(--red)';
+}
+
+const INV_METRICS = ['fatiga','dolor','estres'];
+
+function updateSlider(name, val) {
+  val = parseInt(val);
+  sliderValues[name] = val;
+  const color = INV_METRICS.includes(name) ? sliderColorInv(val) : sliderColor(val);
+  const el = document.getElementById('v-'+name);
+  el.textContent = val;
+  el.style.color = color;
+  // Actualizar thumb color
+  const slider = document.getElementById('s-'+name);
+  slider.style.background = `linear-gradient(to right, ${color} 0%, ${color} ${(val-1)/9*100}%, var(--card2) ${(val-1)/9*100}%, var(--card2) 100%)`;
+  updateWellnessScore();
+  checkSubmit();
+}
+
+function updateWellnessScore() {
+  const vals = Object.values(sliderValues);
+  if (vals.some(v => v === null)) return;
+  
+  // Invertir fatiga, dolor, estrés para el score (10 = mejor)
+  const normalized = [
+    sliderValues.sueno,
+    11 - sliderValues.fatiga,
+    11 - sliderValues.dolor,
+    sliderValues.humor,
+    11 - sliderValues.estres
+  ];
+  const total = normalized.reduce((a,b)=>a+b,0); // max 50
+  const pct   = (total/50)*100;
+  
+  let color, estado;
+  if (pct >= 75) { color='var(--green)';  estado='🟢 Óptimo'; }
+  else if (pct >= 50) { color='var(--yellow)'; estado='🟡 Precaución'; }
+  else { color='var(--red)'; estado='🔴 Atención'; }
+
+  document.getElementById('wellness-score').textContent = total;
+  document.getElementById('wellness-score').style.color = color;
+  document.getElementById('wellness-bar').style.width   = pct+'%';
+  document.getElementById('wellness-bar').style.background = color;
+  document.getElementById('wellness-estado').textContent = estado;
+}
+
+// ── RPE ──────────────────────────────────
+function selectRPE(r) {
+  selectedRPE = r.val;
+  document.querySelectorAll('.rpe-btn').forEach(b => {
+    b.classList.remove('selected');
+    b.style.background = '';
+    b.style.color = '';
+  });
+  const btn = document.querySelector(`.rpe-btn[data-val="${r.val}"]`);
+  btn.classList.add('selected');
+  btn.style.background = r.color;
+  btn.style.color = '#fff';
+  document.getElementById('rpe-label').textContent = r.label;
+  document.getElementById('rpe-label').style.color = r.color;
+  updateCargaSesion();
+  checkSubmit();
+}
+
+function updateDuracion(val) {
+  duracion = parseInt(val);
+  document.getElementById('v-duracion').textContent = val + ' min';
+  updateCargaSesion();
+}
+
+function updateCargaSesion() {
+  if (selectedRPE === null) return;
+  const carga = selectedRPE * duracion;
+  document.getElementById('carga-sesion-box').style.display = 'block';
+  document.getElementById('carga-sesion-val').textContent = carga + ' UA';
+  document.getElementById('carga-sesion-formula').textContent = `RPE ${selectedRPE} × ${duracion} min`;
+}
+
+function checkSubmit() {
+  // Wellness
+  const wJug  = document.getElementById('w-jugador').value;
+  const wFecha= document.getElementById('w-fecha').value;
+  const allSliders = Object.values(sliderValues).every(v => v !== null);
+  document.getElementById('btn-w').disabled = !(wJug && wFecha && allSliders);
+
+  // RPE
+  const rJug  = document.getElementById('r-jugador').value;
+  const rFecha= document.getElementById('r-fecha').value;
+  document.getElementById('btn-r').disabled = !(rJug && rFecha && selectedRPE !== null);
+}
+
+// ── Submit ────────────────────────────────
+async function submitWellness() {
+  const btn = document.getElementById('btn-w');
+  btn.disabled = true;
+  btn.textContent = 'Enviando...';
+
+  const payload = {
+    tipo: 'wellness',
+    jugador: document.getElementById('w-jugador').value,
+    fecha:   document.getElementById('w-fecha').value,
+    sueno:   sliderValues.sueno,
+    fatiga:  sliderValues.fatiga,
+    dolor:   sliderValues.dolor,
+    humor:   sliderValues.humor,
+    estres:  sliderValues.estres,
+  };
+
+  await sendData(payload);
+  showSuccess('wellness', payload.jugador);
+}
+
+async function submitRPE() {
+  const btn = document.getElementById('btn-r');
+  btn.disabled = true;
+  btn.textContent = 'Enviando...';
+
+  const payload = {
+    tipo: 'rpe',
+    jugador: document.getElementById('r-jugador').value,
+    fecha:   document.getElementById('r-fecha').value,
+    sesion:  document.getElementById('r-sesion').value || 'Sesión',
+    rpe:     selectedRPE,
+    cargaSesion: selectedRPE * duracion,
+  };
+
+  await sendData(payload);
+  showSuccess('rpe', payload.jugador);
+}
+
+async function sendData(payload) {
+  try {
+    await fetch(APPS_SCRIPT_URL, {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    });
+  } catch(e) {
+    // Si CORS falla, intentar con no-cors (Apps Script acepta)
+    try {
+      await fetch(APPS_SCRIPT_URL, {
+        method: 'POST',
+        mode: 'no-cors',
+        body: JSON.stringify(payload),
+      });
+    } catch(e2) { console.error(e2); }
+  }
+}
+
+function showSuccess(tipo, jugador) {
+  document.getElementById('wellness-form').style.display = 'none';
+  document.getElementById('rpe-form').style.display = 'none';
+  const s = document.getElementById('success-view');
+  s.style.display = 'block';
+  document.getElementById('success-icon').textContent  = tipo==='wellness' ? '🌙' : '⚡';
+  document.getElementById('success-title').textContent = `¡Listo, ${jugador.split(' ')[0]}!`;
+  document.getElementById('success-sub').textContent   = tipo==='wellness'
+    ? 'Tu Wellness fue registrado. Buena sesión hoy 💪'
+    : 'Tu RPE fue registrado. ¡Buen trabajo! 💪';
+}
+
+function resetForm() {
+  sliderValues = { sueno:null, fatiga:null, dolor:null, humor:null, estres:null };
+  selectedRPE = null;
+  document.getElementById('wellness-form').style.display = '';
+  document.getElementById('rpe-form').style.display = '';
+  document.getElementById('success-view').style.display = 'none';
+  document.getElementById('btn-w').disabled = true;
+  document.getElementById('btn-r').disabled = true;
+  document.getElementById('btn-w').textContent = 'Enviar Wellness';
+  document.getElementById('btn-r').textContent = 'Enviar RPE';
+  setTab(currentTab);
+}
+</script>
+</body>
+</html>
