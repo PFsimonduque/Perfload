@@ -299,7 +299,7 @@ export default function PerfLoad() {
 
   const statusCount = playersWithACWR.reduce((a,p)=>{ a[p.status]=(a[p.status]||0)+1; return a; },{});
   const avgACWR = parseFloat((playersWithACWR.reduce((a,p)=>a+p.acwr,0)/playersWithACWR.length).toFixed(2));
-  const _teamLoad = players.reduce((a,p)=>a+(p.loads[p.loads.length-1]||0),0);
+  
 
   const statusCfg = {
     optimal: { label:"Óptimo",     color:C.green  },
