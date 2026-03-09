@@ -133,8 +133,8 @@ const calcACWR = (loads) => {
   return chronic > 0 ? parseFloat((acute / chronic).toFixed(2)) : 1.0;
 };
 
-const acwrColor = (v) => (v < 0.8 || v > 1.5) ? C.red : (v < 1.0 || v > 1.3) ? C.yellow : C.green;
-const acwrLabel = (v) => v < 0.8 ? "Carga muy baja" : v < 1.0 ? "Precaución — baja" : v <= 1.3 ? "Zona óptima" : v <= 1.5 ? "Precaución — alta" : "Riesgo lesión";
+const acwrColor = (v) => (v < 0.8 || v > 1.5) ? C.red : (v < 0.94 || v > 1.35) ? C.yellow : C.green;
+const acwrLabel = (v) => v < 0.8 ? "Carga muy baja" : v < 0.94 ? "Precaución — baja" : v <= 1.35 ? "Zona óptima" : v <= 1.5 ? "Precaución — alta" : "Riesgo lesión";
 
 // ═══════════════════════════════════════════════════════
 //  DEMO SEED DATA (used until real CSVs are uploaded)
@@ -395,7 +395,7 @@ export default function PerfLoad() {
       const a = calcACWR(p.loads);
       const w = wellnessData.find(w => w.jugador === p.nombre);
       if (a < 0.8 || a > 1.5 || (w && (w.fatiga >= 7 || w.dolor >= 6))) return "risk";
-      if (a < 1.0 || a > 1.3 || (w && (w.fatiga >= 5 || w.dolor >= 4))) return "caution";
+      if (a < 0.94 || a > 1.35 || (w && (w.fatiga >= 5 || w.dolor >= 4))) return "caution";
       return "optimal";
     })(),
     wellness: wellnessData.find(w => w.jugador === p.nombre) || null,
