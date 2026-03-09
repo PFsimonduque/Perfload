@@ -206,7 +206,7 @@ const DropZone = ({ label, icon, color, accept, onFile, loading, compact }) => {
 export default function PerfLoad() {
   const [page, setPage]           = useState("dashboard");
   const [players, setPlayers]     = useState(SEED_PLAYERS);
-  const [wellness, setWellness]   = useState(SEED_WELLNESS);
+  const [wellness]   = useState(SEED_WELLNESS);
   const [catRaw, setCatRaw]       = useState(null);   // raw catapult rows
   const [wysRaw, setWysRaw]       = useState(null);   // raw wyscout rows
   const [loading, setLoading]     = useState({});
@@ -299,7 +299,7 @@ export default function PerfLoad() {
 
   const statusCount = playersWithACWR.reduce((a,p)=>{ a[p.status]=(a[p.status]||0)+1; return a; },{});
   const avgACWR = parseFloat((playersWithACWR.reduce((a,p)=>a+p.acwr,0)/playersWithACWR.length).toFixed(2));
-  const teamLoad = players.reduce((a,p)=>a+(p.loads[p.loads.length-1]||0),0);
+  const _teamLoad = players.reduce((a,p)=>a+(p.loads[p.loads.length-1]||0),0);
 
   const statusCfg = {
     optimal: { label:"Óptimo",     color:C.green  },
