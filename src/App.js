@@ -77,33 +77,67 @@ const acwrLabel = (v) => v < 0.8 ? "Carga baja" : v <= 1.3 ? "Zona óptima" : v 
 //  DEMO SEED DATA (used until real CSVs are uploaded)
 // ═══════════════════════════════════════════════════════
 const SEED_PLAYERS = [
-  { id:1,  nombre:"Carlos Moreno",  pos:"DC",  edad:24, loads:[310,340,290,380,360,400,320], cat:null, wys:null },
-  { id:2,  nombre:"Juan Herrera",   pos:"MCD", edad:27, loads:[420,390,440,410,460,480,390], cat:null, wys:null },
-  { id:3,  nombre:"Andrés Ríos",    pos:"EXD", edad:22, loads:[280,300,260,320,290,310,270], cat:null, wys:null },
-  { id:4,  nombre:"Felipe Castro",  pos:"DC",  edad:30, loads:[500,520,490,540,560,580,510], cat:null, wys:null },
-  { id:5,  nombre:"Diego Vargas",   pos:"POR", edad:26, loads:[200,190,210,180,220,200,190], cat:null, wys:null },
-  { id:6,  nombre:"Luis Patiño",    pos:"EXI", edad:23, loads:[350,370,340,390,360,410,350], cat:null, wys:null },
-  { id:7,  nombre:"Miguel Torres",  pos:"MCO", edad:28, loads:[390,410,380,430,400,450,390], cat:null, wys:null },
-  { id:8,  nombre:"Sebastián Gil",  pos:"LTD", edad:25, loads:[320,340,310,360,330,370,320], cat:null, wys:null },
-  { id:9,  nombre:"Camilo Ruiz",    pos:"DEL", edad:21, loads:[480,510,470,540,520,570,490], cat:null, wys:null },
-  { id:10, nombre:"Nicolás Ossa",   pos:"LTI", edad:29, loads:[300,310,290,330,300,340,300], cat:null, wys:null },
-  { id:11, nombre:"Jhon Giraldo",   pos:"MCI", edad:24, loads:[360,380,350,400,370,420,360], cat:null, wys:null },
-  { id:12, nombre:"Brayan López",   pos:"DEL", edad:26, loads:[430,450,420,470,440,490,430], cat:null, wys:null },
+  { id:1, nombre:"Hector Arango", pos:"POR", edad:23, peso:90.05, talla:194, loads:[210, 255, 249, 196, 227, 257, 240, 260, 254, 188, 257, 181, 240, 213, 250, 209, 204, 240, 249, 250, 240, 230, 199, 209, 199, 246, 229, 181], cat:null, wys:null },
+  { id:2, nombre:"Johan Grisales", pos:"POR", edad:21, peso:78.6, talla:187, loads:[253, 184, 234, 241, 253, 181, 206, 239, 242, 215, 200, 184, 246, 242, 221, 189, 211, 226, 185, 233, 197, 257, 225, 228, 233, 216, 213, 238], cat:null, wys:null },
+  { id:3, nombre:"Edwin Martinez", pos:"LAT", edad:21, peso:86.3, talla:178, loads:[386, 373, 358, 366, 357, 342, 389, 355, 334, 323, 351, 369, 373, 352, 384, 360, 371, 337, 390, 327, 337, 345, 339, 388, 391, 346, 362, 389], cat:null, wys:null },
+  { id:4, nombre:"Deivi Barrios", pos:"DC", edad:21, peso:81.6, talla:183, loads:[349, 374, 323, 327, 321, 324, 321, 311, 319, 336, 301, 356, 359, 314, 303, 366, 321, 362, 356, 338, 363, 310, 332, 378, 320, 341, 339, 309], cat:null, wys:null },
+  { id:5, nombre:"Juan Salinas", pos:"DC", edad:18, peso:93.4, talla:195, loads:[301, 360, 314, 350, 318, 305, 317, 314, 368, 329, 317, 318, 304, 307, 317, 329, 368, 357, 367, 352, 326, 375, 311, 315, 302, 351, 343, 325], cat:null, wys:null },
+  { id:6, nombre:"Victor Lasso", pos:"DC", edad:20, peso:74.2, talla:188, loads:[353, 354, 313, 308, 346, 359, 347, 305, 377, 321, 375, 344, 341, 334, 342, 379, 339, 360, 374, 351, 328, 378, 310, 367, 362, 318, 355, 367], cat:null, wys:null },
+  { id:7, nombre:"Nawer Vargas", pos:"DC", edad:21, peso:88.2, talla:196, loads:[334, 353, 362, 332, 310, 338, 343, 302, 309, 361, 301, 314, 336, 315, 339, 304, 379, 308, 317, 334, 319, 327, 354, 309, 378, 352, 318, 307], cat:null, wys:null },
+  { id:8, nombre:"Felipe Palomino", pos:"LAT", edad:21, peso:80.5, talla:185, loads:[354, 326, 385, 381, 367, 372, 324, 337, 340, 372, 343, 364, 376, 400, 320, 324, 389, 369, 376, 321, 350, 328, 340, 341, 381, 349, 400, 355], cat:null, wys:null },
+  { id:9, nombre:"Jhon Barreiro", pos:"LAT", edad:20, peso:77.4, talla:186, loads:[348, 330, 378, 322, 337, 358, 322, 399, 321, 382, 368, 382, 388, 358, 340, 394, 363, 342, 387, 334, 332, 367, 325, 360, 359, 331, 325, 344], cat:null, wys:null },
+  { id:10, nombre:"Samuel Gonzalez", pos:"LAT", edad:21, peso:71.5, talla:179, loads:[329, 359, 375, 351, 377, 357, 352, 391, 332, 383, 343, 379, 386, 336, 328, 366, 341, 372, 378, 384, 323, 387, 334, 369, 337, 367, 323, 321], cat:null, wys:null },
+  { id:11, nombre:"Jerson Balanta", pos:"LAT", edad:17, peso:73.5, talla:182, loads:[355, 335, 384, 381, 392, 343, 379, 358, 395, 329, 382, 371, 386, 384, 345, 377, 334, 322, 352, 372, 323, 373, 365, 391, 374, 383, 390, 375], cat:null, wys:null },
+  { id:12, nombre:"Luis Mosquera", pos:"LAT", edad:19, peso:71.6, talla:175, loads:[354, 370, 389, 373, 367, 366, 388, 371, 367, 323, 390, 369, 348, 399, 326, 369, 350, 341, 387, 392, 321, 338, 377, 399, 336, 340, 349, 367], cat:null, wys:null },
+  { id:13, nombre:"Santiago Agamez", pos:"MCD", edad:20, peso:73.2, talla:177, loads:[358, 364, 409, 353, 375, 382, 409, 381, 355, 386, 341, 375, 389, 351, 403, 405, 418, 348, 365, 372, 363, 411, 350, 379, 343, 375, 393, 416], cat:null, wys:null },
+  { id:14, nombre:"Dennis Matamba", pos:"MCD", edad:20, peso:79.7, talla:184, loads:[409, 363, 355, 375, 378, 395, 342, 403, 387, 379, 394, 416, 375, 408, 342, 395, 341, 395, 385, 398, 384, 367, 345, 392, 399, 360, 373, 356], cat:null, wys:null },
+  { id:15, nombre:"Yeiner Valoyes", pos:"MCI", edad:20, peso:68, talla:170, loads:[424, 374, 419, 395, 409, 356, 414, 377, 427, 378, 386, 412, 377, 392, 406, 359, 382, 374, 370, 361, 406, 418, 396, 374, 410, 391, 380, 401], cat:null, wys:null },
+  { id:16, nombre:"Kevin Gomez", pos:"MCI", edad:30, peso:72.8, talla:170, loads:[366, 360, 399, 385, 398, 375, 360, 388, 377, 373, 375, 390, 374, 364, 374, 360, 421, 404, 363, 418, 391, 399, 377, 430, 428, 357, 422, 407], cat:null, wys:null },
+  { id:17, nombre:"Jhoiner Zarante", pos:"MCI", edad:18, peso:76.8, talla:178, loads:[386, 375, 364, 418, 364, 392, 420, 387, 386, 393, 411, 357, 420, 420, 368, 369, 355, 386, 372, 412, 425, 381, 371, 373, 368, 417, 377, 368], cat:null, wys:null },
+  { id:18, nombre:"Jader Contreras", pos:"MCO", edad:18, peso:70.9, talla:178, loads:[395, 357, 406, 368, 339, 376, 358, 388, 405, 350, 343, 368, 387, 360, 401, 380, 378, 410, 348, 372, 365, 390, 339, 379, 345, 396, 387, 409], cat:null, wys:null },
+  { id:19, nombre:"Josue Villareal", pos:"MCO", edad:19, peso:75.2, talla:183, loads:[405, 396, 364, 335, 381, 410, 358, 372, 359, 344, 400, 349, 347, 365, 402, 359, 347, 391, 406, 388, 347, 343, 363, 339, 363, 341, 384, 335], cat:null, wys:null },
+  { id:20, nombre:"Maicol Preciado", pos:"EXT", edad:20, peso:69, talla:174, loads:[433, 414, 427, 367, 415, 423, 385, 414, 377, 381, 423, 365, 380, 367, 437, 366, 385, 384, 437, 395, 439, 405, 411, 422, 363, 369, 393, 429], cat:null, wys:null },
+  { id:21, nombre:"Andres Ruiz", pos:"MCI", edad:21, peso:68, talla:170, loads:[373, 355, 352, 378, 368, 381, 360, 402, 413, 367, 423, 366, 361, 425, 387, 405, 362, 385, 427, 413, 399, 423, 364, 430, 386, 387, 396, 409], cat:null, wys:null },
+  { id:22, nombre:"Eder Torres", pos:"MCI", edad:16, peso:68.3, talla:172, loads:[391, 401, 374, 379, 388, 411, 368, 370, 403, 361, 387, 392, 386, 406, 400, 356, 367, 367, 412, 397, 361, 388, 411, 394, 366, 351, 357, 363], cat:null, wys:null },
+  { id:23, nombre:"Sebastian Girado", pos:"EXT", edad:21, peso:68, talla:168, loads:[438, 422, 388, 380, 362, 363, 404, 404, 389, 400, 377, 371, 382, 388, 373, 362, 374, 410, 412, 408, 398, 431, 373, 415, 420, 381, 363, 374], cat:null, wys:null },
+  { id:24, nombre:"Johan Parra", pos:"EXT", edad:21, peso:63, talla:167, loads:[372, 398, 392, 419, 422, 437, 409, 375, 370, 413, 410, 360, 435, 384, 379, 399, 400, 374, 417, 437, 369, 430, 374, 371, 406, 367, 396, 364], cat:null, wys:null },
+  { id:25, nombre:"Jose Hernandez", pos:"EXT", edad:17, peso:71.3, talla:173, loads:[431, 409, 412, 375, 435, 419, 382, 408, 399, 401, 383, 382, 382, 377, 389, 378, 431, 439, 391, 384, 373, 383, 367, 431, 437, 400, 370, 434], cat:null, wys:null },
+  { id:26, nombre:"Faver Aragon", pos:"EXT", edad:20, peso:74.9, talla:178, loads:[374, 431, 419, 390, 403, 421, 396, 383, 370, 417, 390, 430, 388, 395, 421, 390, 381, 426, 424, 409, 419, 374, 372, 382, 375, 393, 395, 411], cat:null, wys:null },
+  { id:27, nombre:"Daniel Lourido", pos:"EXT", edad:21, peso:58.7, talla:170, loads:[374, 379, 379, 398, 435, 422, 420, 411, 382, 360, 434, 390, 393, 415, 428, 363, 386, 408, 393, 427, 438, 393, 421, 383, 431, 408, 404, 435], cat:null, wys:null },
+  { id:28, nombre:"Santiago Arrechea", pos:"DEL", edad:19, peso:85.5, talla:181, loads:[387, 378, 351, 399, 379, 394, 382, 394, 375, 369, 387, 363, 356, 390, 363, 361, 374, 398, 365, 373, 383, 376, 403, 390, 420, 370, 369, 372], cat:null, wys:null },
+  { id:29, nombre:"Sergio Martinez", pos:"DEL", edad:17, peso:74.6, talla:179, loads:[384, 390, 375, 379, 341, 401, 405, 384, 372, 370, 413, 383, 408, 388, 343, 406, 413, 390, 403, 404, 369, 403, 358, 416, 406, 380, 388, 380], cat:null, wys:null },
 ];
 
 const SEED_WELLNESS = [
-  { jugador:"Carlos Moreno",  sueno:8, fatiga:2, dolor:1, humor:9, estres:2, rpe:7 },
-  { jugador:"Juan Herrera",   sueno:6, fatiga:7, dolor:5, humor:5, estres:6, rpe:8 },
-  { jugador:"Andrés Ríos",    sueno:9, fatiga:1, dolor:1, humor:9, estres:1, rpe:6 },
-  { jugador:"Felipe Castro",  sueno:5, fatiga:8, dolor:7, humor:4, estres:7, rpe:9 },
-  { jugador:"Diego Vargas",   sueno:7, fatiga:3, dolor:2, humor:8, estres:3, rpe:7 },
-  { jugador:"Luis Patiño",    sueno:6, fatiga:6, dolor:5, humor:6, estres:5, rpe:8 },
-  { jugador:"Miguel Torres",  sueno:8, fatiga:2, dolor:2, humor:8, estres:2, rpe:6 },
-  { jugador:"Sebastián Gil",  sueno:7, fatiga:4, dolor:3, humor:7, estres:4, rpe:7 },
-  { jugador:"Camilo Ruiz",    sueno:6, fatiga:7, dolor:6, humor:5, estres:6, rpe:8 },
-  { jugador:"Nicolás Ossa",   sueno:8, fatiga:3, dolor:2, humor:8, estres:3, rpe:7 },
-  { jugador:"Jhon Giraldo",   sueno:7, fatiga:5, dolor:4, humor:6, estres:5, rpe:8 },
-  { jugador:"Brayan López",   sueno:9, fatiga:2, dolor:1, humor:9, estres:2, rpe:6 },
+  { jugador:"Hector Arango", sueno:5, fatiga:4, dolor:3, humor:6, estres:6, rpe:8 },
+  { jugador:"Johan Grisales", sueno:5, fatiga:4, dolor:1, humor:5, estres:5, rpe:9 },
+  { jugador:"Edwin Martinez", sueno:8, fatiga:4, dolor:3, humor:7, estres:1, rpe:7 },
+  { jugador:"Deivi Barrios", sueno:6, fatiga:2, dolor:4, humor:7, estres:3, rpe:9 },
+  { jugador:"Juan Salinas", sueno:7, fatiga:6, dolor:4, humor:6, estres:4, rpe:5 },
+  { jugador:"Victor Lasso", sueno:9, fatiga:4, dolor:2, humor:5, estres:4, rpe:7 },
+  { jugador:"Nawer Vargas", sueno:5, fatiga:6, dolor:3, humor:5, estres:3, rpe:6 },
+  { jugador:"Felipe Palomino", sueno:9, fatiga:1, dolor:2, humor:8, estres:6, rpe:5 },
+  { jugador:"Jhon Barreiro", sueno:9, fatiga:7, dolor:1, humor:7, estres:2, rpe:6 },
+  { jugador:"Samuel Gonzalez", sueno:7, fatiga:5, dolor:4, humor:9, estres:2, rpe:6 },
+  { jugador:"Jerson Balanta", sueno:6, fatiga:3, dolor:1, humor:6, estres:2, rpe:7 },
+  { jugador:"Luis Mosquera", sueno:9, fatiga:5, dolor:4, humor:9, estres:6, rpe:5 },
+  { jugador:"Santiago Agamez", sueno:6, fatiga:5, dolor:1, humor:6, estres:1, rpe:5 },
+  { jugador:"Dennis Matamba", sueno:5, fatiga:4, dolor:5, humor:8, estres:4, rpe:8 },
+  { jugador:"Yeiner Valoyes", sueno:7, fatiga:7, dolor:5, humor:8, estres:4, rpe:7 },
+  { jugador:"Kevin Gomez", sueno:8, fatiga:1, dolor:5, humor:5, estres:1, rpe:5 },
+  { jugador:"Jhoiner Zarante", sueno:6, fatiga:3, dolor:4, humor:5, estres:6, rpe:9 },
+  { jugador:"Jader Contreras", sueno:5, fatiga:6, dolor:3, humor:7, estres:4, rpe:8 },
+  { jugador:"Josue Villareal", sueno:8, fatiga:7, dolor:5, humor:6, estres:2, rpe:6 },
+  { jugador:"Maicol Preciado", sueno:9, fatiga:1, dolor:2, humor:6, estres:1, rpe:6 },
+  { jugador:"Andres Ruiz", sueno:6, fatiga:4, dolor:2, humor:7, estres:1, rpe:6 },
+  { jugador:"Eder Torres", sueno:9, fatiga:3, dolor:2, humor:7, estres:5, rpe:5 },
+  { jugador:"Sebastian Girado", sueno:8, fatiga:7, dolor:5, humor:6, estres:4, rpe:8 },
+  { jugador:"Johan Parra", sueno:6, fatiga:4, dolor:1, humor:6, estres:4, rpe:8 },
+  { jugador:"Jose Hernandez", sueno:5, fatiga:1, dolor:1, humor:7, estres:3, rpe:6 },
+  { jugador:"Faver Aragon", sueno:9, fatiga:3, dolor:2, humor:9, estres:6, rpe:9 },
+  { jugador:"Daniel Lourido", sueno:6, fatiga:4, dolor:3, humor:7, estres:5, rpe:8 },
+  { jugador:"Santiago Arrechea", sueno:7, fatiga:1, dolor:5, humor:6, estres:5, rpe:8 },
+  { jugador:"Sergio Martinez", sueno:9, fatiga:2, dolor:5, humor:6, estres:2, rpe:9 },
 ];
 
 // ═══════════════════════════════════════════════════════
@@ -363,7 +397,7 @@ export default function PerfLoad() {
         <div>
           <div style={{fontSize:24,fontWeight:800,letterSpacing:"-0.025em",color:"#f0f5ff"}}>Centro de Control</div>
           <div style={{fontSize:12,color:C.muted,marginTop:3}}>
-            Semana 28 · Liga BetPlay ·
+            Semana 1 · BCA 2026-1 ·
             <span style={{color: catRaw?C.green:C.muted, marginLeft:6}}>
               {catRaw ? `✓ GPS cargado (${catRaw.length} reg.)` : "Sin datos GPS"}
             </span>
@@ -1366,7 +1400,7 @@ export default function PerfLoad() {
       <aside style={S.sidebar}>
         <div style={S.logo}>
           <div style={{fontSize:13,fontWeight:800,letterSpacing:"0.1em",color:C.green,fontFamily:"monospace"}}>⬡ PERFLOAD</div>
-          <div style={{fontSize:9,color:C.muted,letterSpacing:"0.08em",marginTop:3,textTransform:"uppercase"}}>Colombia · Fútbol Pro</div>
+          <div style={{fontSize:9,color:C.muted,letterSpacing:"0.08em",marginTop:3,textTransform:"uppercase"}}>Orsomarso SC · BCA 2026-1</div>
         </div>
         <nav style={S.nav}>
           {navItems.map(item=>(
