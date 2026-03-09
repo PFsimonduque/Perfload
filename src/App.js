@@ -206,7 +206,7 @@ const DropZone = ({ label, icon, color, accept, onFile, loading, compact }) => {
 export default function PerfLoad() {
   const [page, setPage]           = useState("dashboard");
   const [players, setPlayers]     = useState(SEED_PLAYERS);
-  const [wellness]                = useState(SEED_WELLNESS);
+  const wellnessData                = useState(SEED_WELLNESS)[0];
   const [catRaw, setCatRaw]       = useState(null);   // raw catapult rows
   const [wysRaw, setWysRaw]       = useState(null);   // raw wyscout rows
   const [loading, setLoading]     = useState({});
@@ -289,18 +289,18 @@ export default function PerfLoad() {
     acwr: calcACWR(p.loads),
     status: (() => {
       const a = calcACWR(p.loads);
-      const w = wellness.find(w => w.jugador === p.nombre);
+      const w = wellnessData.find(w => w.jugador === p.nombre);
       if (a > 1.5 || (w && (w.fatiga >= 7 || w.dolor >= 6))) return "risk";
       if (a > 1.3 || (w && (w.fatiga >= 5 || w.dolor >= 4))) return "caution";
       return "optimal";
     })(),
-    wellness: wellness.find(w => w.jugador === p.nombre) || null,
+    wellness: wellnessData.find(w => w.jugador === p.nombre) || null,
   }));
 
   const statusCount = playersWithACWR.reduce((a,p)=>{ a[p.status]=(a[p.status]||0)+1; return a; },{});
   const avgACWR = parseFloat((playersWithACWR.reduce((a,p)=>a+p.acwr,0)/playersWithACWR.length).toFixed(2));
-  const teamTotalLoad = players.reduce((a,p)=>a+(p.loads[p.loads.length-1]||0),0);
-  // teamLoad available via teamTotalLoad
+  // computed team load (available if needed)
+  const TIPOS_SESION = ["MD-4","MD-3","MD-2","MD-1","MD","MD+1"];
 
   const statusCfg = {
     optimal: { label:"Óptimo",     color:C.green  },
@@ -768,7 +768,7 @@ export default function PerfLoad() {
                 <div style={{fontSize:11,fontWeight:700,color:C.green}}>✓ Sincronizado</div>
                 <div style={{fontSize:10,color:C.muted}}>Última actualización: hace 2 min</div>
               </div>
-              {wellness.slice(0,4).map((w,i)=>(
+              {wellnessData.slice(0,4).map((w,i)=>(
                 <div key={i} style={{display:"flex",alignItems:"center",gap:8,marginBottom:6}}>
                   <div style={{fontSize:11,fontWeight:600,flex:1,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{w.jugador}</div>
                   <WDot val={w.sueno}/>
@@ -789,7 +789,7 @@ export default function PerfLoad() {
           {[
             {label:"GPS Catapult", ok:!!catRaw, n:catRaw?.length, color:C.green},
             {label:"Wyscout",      ok:!!wysRaw, n:wysRaw?.length, color:C.blue},
-            {label:"Google Forms", ok:gConnected, n:wellness.length, color:C.purple},
+            {label:"Google Forms", ok:gConnected, n:wellnessData.length, color:C.purple},
           ].map((s,i)=>(
             <div key={i} style={{display:"flex",alignItems:"center",gap:8}}>
               <div style={{width:8,height:8,borderRadius:"50%",background:s.ok?s.color:C.dim}}/>
