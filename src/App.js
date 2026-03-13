@@ -171,7 +171,9 @@ const SEED_PLAYERS = [
   { id:29, nombre:"Sergio Martinez", pos:"DEL", edad:17, peso:74.6, talla:179, loads:[665, 324, 202, 219, 292, 599, 152, 306, 126, 467, 364, 26, 0, 559, 318, 332, 276, 185, 338, 472], cat:{distancia:3594,playerLoad:472.5,velMax:25.0,mpm:76.0,hsr:2,sprint:0,sprintsN:0,acelsM:13,acelsH:3,decelsM:22,decelsH:8,actividad:"25 feb. M8 S34 EJECUCIÓN",fecha:"2026-02-25"}, catSemana:null, catMes:{distancia:31772,playerLoad:3744.1,velMax:31.2,mpm:61.2,hsr:313,sprint:0,sprintsN:14,acelsM:78,acelsH:39,decelsM:71,decelsH:38,sesiones:11}, catTemporada:{distancia:54088,playerLoad:6197.4,velMax:31.2,mpm:67.3,hsr:599,sprint:0,sprintsN:31,acelsM:118,acelsH:63,decelsM:113,decelsH:62,sesiones:18}, wys:null },
 ];
 
-const SEED_WELLNESS = [
+const APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbws-dAve2aw71GZhGA58PnNdPY8H3HFqWfLsyHzqyQ5xjPIpyxarmtoyuZJXMbu--pV/exec";
+
+
   { jugador:"Hector Arango", sueno:5, fatiga:4, dolor:3, humor:6, estres:6, rpe:8 },
   { jugador:"Johan Grisales", sueno:5, fatiga:4, dolor:1, humor:5, estres:5, rpe:9 },
   { jugador:"Edwin Martinez", sueno:8, fatiga:4, dolor:3, humor:7, estres:1, rpe:7 },
@@ -303,7 +305,8 @@ const DropZone = ({ label, icon, color, accept, onFile, loading, compact }) => {
 export default function PerfLoad() {
   const [page, setPage]           = useState("dashboard");
   const [players, setPlayers]     = useState(SEED_PLAYERS);
-  const wellnessData                = useState(SEED_WELLNESS)[0];
+  const [wellnessData, setWellnessData] = useState(SEED_WELLNESS);
+  const [wellnessLoading, setWellnessLoading] = useState(false);
   const [catRaw, setCatRaw]       = useState(null);   // raw catapult rows
   const [wysRaw, setWysRaw]       = useState(null);   // raw wyscout rows
   const [loading, setLoading]     = useState({});
@@ -374,19 +377,52 @@ export default function PerfLoad() {
     reader.readAsText(file);
   }, []);
 
-  // ── Connect Google Sheets (simulated) ──
-  const connectGoogle = () => {
-    if (!sheetsUrl.includes("docs.google.com/spreadsheets")) {
-      showFlash("⚠ Enlace inválido — debe ser un Google Sheet", C.yellow);
-      return;
+  // ── Fetch Wellness desde Apps Script ──
+  const fetchWellness = useCallback(async (silent=false) => {
+    if (!silent) setWellnessLoading(true);
+    try {
+      const res = await fetch(`${APPS_SCRIPT_URL}?tipo=wellness`);
+      const rows = await res.json();
+      if (Array.isArray(rows) && rows.length > 0) {
+        const byPlayer = {};
+        rows.forEach(r => {
+          const nombre = r.Jugador || r.jugador;
+          if (!nombre || nombre === 'Test') return;
+          const ts = r.Timestamp || r.timestamp || '';
+          if (!byPlayer[nombre] || ts > (byPlayer[nombre]._ts||'')) {
+            byPlayer[nombre] = {
+              jugador: nombre,
+              sueno:   parseFloat(r["Sueño"]  || r.sueno  || 5),
+              fatiga:  parseFloat(r.Fatiga    || r.fatiga  || 3),
+              dolor:   parseFloat(r.Dolor     || r.dolor   || 2),
+              humor:   parseFloat(r.Humor     || r.humor   || 7),
+              estres:  parseFloat(r["Estrés"] || r.estres  || 3),
+              fecha:   r.Fecha || r.fecha || '',
+              _ts: ts,
+            };
+          }
+        });
+        const merged = SEED_WELLNESS.map(s => byPlayer[s.jugador] || s);
+        Object.values(byPlayer).forEach(b => {
+          if (!merged.find(m => m.jugador === b.jugador)) merged.push(b);
+        });
+        setWellnessData(merged);
+        setGConnected(true);
+        if (!silent) showFlash(`✓ Wellness actualizado · ${Object.keys(byPlayer).length} jugadores`, C.purple);
+      } else {
+        if (!silent) showFlash("⚠ Sin datos en el Sheet aún", C.yellow);
+      }
+    } catch(e) {
+      if (!silent) showFlash("⚠ Error conectando al Sheet", C.red);
     }
-    setLoading(l=>({...l,google:true}));
-    setTimeout(()=>{
-      setGConnected(true);
-      setLoading(l=>({...l,google:false}));
-      showFlash("✓ Google Forms conectado · Datos de wellness actualizados", C.purple);
-    }, 1200);
-  };
+    if (!silent) setWellnessLoading(false);
+  }, []);
+
+  // Auto-fetch wellness al cargar
+  useEffect(() => { fetchWellness(true); }, [fetchWellness]);
+
+  // ── Connect Google Sheets ──
+  const connectGoogle = () => { fetchWellness(false); };
 
   // ── Computed values ──
   const playersWithACWR = players.map(p => ({
@@ -869,28 +905,27 @@ export default function PerfLoad() {
           {!gConnected ? (
             <>
               <div style={{fontSize:11,color:C.muted,lineHeight:1.7,marginBottom:12}}>
-                Pega el enlace del Google Sheet donde se guardan las respuestas de tu Form:
+                Conecta con el Sheet de Wellness para ver los datos en tiempo real:
               </div>
-              <input value={sheetsUrl} onChange={e=>setSheetsUrl(e.target.value)}
-                placeholder="https://docs.google.com/spreadsheets/d/..."
-                style={{width:"100%",padding:"9px 12px",borderRadius:9,fontSize:11,
-                  background:C.surface,border:`1px solid ${C.border}`,color:C.text,
-                  outline:"none",fontFamily:"inherit",boxSizing:"border-box",marginBottom:8}}/>
-              <button onClick={connectGoogle} disabled={loading.google}
-                style={{width:"100%",padding:"9px",borderRadius:9,background:loading.google?`${C.purple}50`:C.purple,
+              <button onClick={connectGoogle} disabled={wellnessLoading}
+                style={{width:"100%",padding:"9px",borderRadius:9,background:wellnessLoading?`${C.purple}50`:C.purple,
                   color:"#06080f",fontSize:11,fontWeight:800,border:"none",cursor:"pointer"}}>
-                {loading.google?"⏳ Conectando...":"⚡ Conectar Google Forms"}
+                {wellnessLoading?"⏳ Cargando...":"⚡ Cargar Wellness desde Sheet"}
               </button>
-              <div style={{marginTop:10,fontSize:10,color:C.muted,lineHeight:1.7}}>
-                Form → Respuestas → ícono Sheets → Compartir enlace como Lector
-              </div>
             </>
           ) : (
             <div>
               <div style={{padding:"10px 12px",borderRadius:8,background:`${C.green}10`,
-                border:`1px solid ${C.green}25`,marginBottom:12}}>
-                <div style={{fontSize:11,fontWeight:700,color:C.green}}>✓ Sincronizado</div>
-                <div style={{fontSize:10,color:C.muted}}>Última actualización: hace 2 min</div>
+                border:`1px solid ${C.green}25`,marginBottom:12,display:"flex",alignItems:"center",justifyContent:"space-between"}}>
+                <div>
+                  <div style={{fontSize:11,fontWeight:700,color:C.green}}>✓ Sincronizado</div>
+                  <div style={{fontSize:10,color:C.muted}}>{wellnessData.filter(w=>w.fecha).length} jugadores con datos reales</div>
+                </div>
+                <button onClick={connectGoogle} disabled={wellnessLoading}
+                  style={{padding:"5px 10px",borderRadius:7,background:`${C.purple}20`,
+                    color:C.purple,fontSize:10,fontWeight:700,border:"none",cursor:"pointer"}}>
+                  {wellnessLoading?"...":"↻ Actualizar"}
+                </button>
               </div>
               {wellnessData.slice(0,4).map((w,i)=>(
                 <div key={i} style={{display:"flex",alignItems:"center",gap:8,marginBottom:6}}>
