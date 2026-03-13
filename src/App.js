@@ -173,7 +173,7 @@ const SEED_PLAYERS = [
 
 const APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbws-dAve2aw71GZhGA58PnNdPY8H3HFqWfLsyHzqyQ5xjPIpyxarmtoyuZJXMbu--pV/exec";
 
-
+const SEED_WELLNESS = [
   { jugador:"Hector Arango", sueno:5, fatiga:4, dolor:3, humor:6, estres:6, rpe:8 },
   { jugador:"Johan Grisales", sueno:5, fatiga:4, dolor:1, humor:5, estres:5, rpe:9 },
   { jugador:"Edwin Martinez", sueno:8, fatiga:4, dolor:3, humor:7, estres:1, rpe:7 },
