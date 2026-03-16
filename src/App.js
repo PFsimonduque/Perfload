@@ -417,8 +417,12 @@ export default function PerfLoad() {
     if (!silent) setWellnessLoading(false);
   }, []);
 
-  // Auto-fetch wellness al cargar
-  useEffect(() => { fetchWellness(true); }, [fetchWellness]);
+  // Auto-fetch wellness al cargar + polling cada 2 minutos
+  useEffect(() => {
+    fetchWellness(true);
+    const interval = setInterval(() => fetchWellness(true), 2 * 60 * 1000);
+    return () => clearInterval(interval);
+  }, [fetchWellness]);
 
   // ── Connect Google Sheets ──
   const connectGoogle = () => { fetchWellness(false); };
