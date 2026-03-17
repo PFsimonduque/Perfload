@@ -1342,7 +1342,13 @@ export default function PerfLoad() {
       if (!filas.length) return <div style={{padding:40,textAlign:'center',color:'#94a3b8'}}>Sin datos para esta sesión</div>;
 
       // Sort by distance desc, exclude GK for team averages
-      const sorted = [...filas].sort((a,b) => pf(b.Distancia)-pf(a.Distancia));
+      // Dedup by jugador keeping max duration
+      const _jugMap = {};
+      filas.forEach(r => {
+        const k = (r.Jugador||'').trim();
+        if (!_jugMap[k] || pf(r.Duracion) > pf(_jugMap[k].Duracion)) _jugMap[k] = r;
+      });
+      const sorted = Object.values(_jugMap).sort((a,b) => pf(b.Distancia)-pf(a.Distancia));
       const campo = filas.filter(r => !(r.Posicion||'').toLowerCase().includes('goal') && !(r.Posicion||'').toLowerCase().includes('por'));
       const n = 10; // divide by 10 field players
 
@@ -1430,7 +1436,7 @@ export default function PerfLoad() {
                     const pc = getPC(r.Posicion);
                     return (
                       <tr key={i} style={{background:i%2===0?'#f8fafc':'#fff',borderBottom:'1px solid #e2e8f0'}}>
-                        <td style={{padding:'5px 8px',fontWeight:700,whiteSpace:'nowrap'}}>
+                        <td style={{padding:'5px 8px',fontWeight:700,whiteSpace:'nowrap',color:'#111827'}}>
                           <div style={{display:'flex',alignItems:'center',gap:5}}>
                             <div style={{width:3,height:16,background:pc,borderRadius:2,flexShrink:0}}/>
                             {r.Jugador}
@@ -1492,7 +1498,7 @@ export default function PerfLoad() {
                       return (
                         <div key={i} style={{display:'flex',alignItems:'center',gap:6,marginBottom:3}}>
                           <div style={{width:3,height:12,background:pc,borderRadius:1,flexShrink:0}}/>
-                          <div style={{width:90,fontSize:8,color:'#1e293b',fontWeight:500,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap',flexShrink:0}}>{(r.Jugador||'').split(' ')[0]} {(r.Jugador||'').split(' ')[1]?.[0]}.</div>
+                          <div style={{width:110,fontSize:8,color:'#1e293b',fontWeight:600,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap',flexShrink:0}}>{(r.Jugador||'')}</div>
                           <div style={{flex:1,height:10,background:'#e5e7eb',borderRadius:2,overflow:'hidden'}}>
                             <div style={{height:'100%',width:`${pct}%`,background:color,borderRadius:2}}/>
                           </div>
@@ -1565,7 +1571,14 @@ export default function PerfLoad() {
       if (!jugadorActual) return null;
       const nombre = jugadorActual.nombre;
       const filasJug = gpsData.filter(r => (r.Jugador||'').toLowerCase().includes(nombre.toLowerCase().split(' ')[0].toLowerCase()));
-      const filasSelec = diasSelec.length > 0 ? filasJug.filter(r => diasSelec.includes(r.Fecha)) : filasJug.slice(-1);
+      // Dedup by actividad keeping max duration
+      const _rawSel = diasSelec.length > 0 ? filasJug.filter(r => diasSelec.includes(r.Fecha)) : filasJug.slice(-1);
+      const _selMap = {};
+      _rawSel.forEach(r => {
+        const k = r.Actividad || r.Fecha;
+        if (!_selMap[k] || parseFloat(r.Duracion||0) > parseFloat(_selMap[k].Duracion||0)) _selMap[k] = r;
+      });
+      const filasSelec = Object.values(_selMap);
       if (!filasSelec.length) return <div style={{padding:40,textAlign:'center',color:'#94a3b8'}}>Sin datos para los días seleccionados</div>;
 
       const sc = statusCfg[jugadorActual.status];
