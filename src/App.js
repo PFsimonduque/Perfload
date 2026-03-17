@@ -503,8 +503,6 @@ export default function PerfLoad() {
 
   const statusCount = playersWithACWR.reduce((a,p)=>{ a[p.status]=(a[p.status]||0)+1; return a; },{});
   const avgACWR = parseFloat((playersWithACWR.reduce((a,p)=>a+p.acwr,0)/playersWithACWR.length).toFixed(2));
-  // computed team load (available if needed)
-  const TIPOS_SESION = ["MD-4","MD-3","MD-2","MD-1","MD","MD+1"];
 
   const statusCfg = {
     optimal: { label:"Óptimo",     color:C.green  },
