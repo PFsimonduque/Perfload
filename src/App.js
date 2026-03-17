@@ -313,7 +313,6 @@ export default function PerfLoad() {
   const [flash, setFlash]         = useState(null);   // { msg, color }
   const [selPlayer, setSelPlayer] = useState(null);
   const [gpsPeriod, setGpsPeriod] = useState('ultima');
-  const [sheetsUrl, setSheetsUrl] = useState("");
   const [gConnected, setGConnected] = useState(false);
   const [loaded, setLoaded]       = useState(false);
 
