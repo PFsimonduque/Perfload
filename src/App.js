@@ -1569,7 +1569,6 @@ export default function PerfLoad() {
       if (!filasSelec.length) return <div style={{padding:40,textAlign:'center',color:'#94a3b8'}}>Sin datos para los días seleccionados</div>;
 
       const sc = statusCfg[jugadorActual.status];
-      const pc = getPC(jugadorActual.pos);
       const w = jugadorActual.wellness;
 
       // All matches for this player for consolidado
