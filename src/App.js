@@ -1491,7 +1491,7 @@ export default function PerfLoad() {
                 <div style={{fontSize:26,fontWeight:900,fontFamily:"'Barlow Condensed',sans-serif",letterSpacing:"-0.01em"}}>{sesion?.actividad?.toUpperCase() || "INFORME DE SESIÓN"}</div>
                 <div style={{fontSize:12,color:"rgba(255,255,255,0.4)",marginTop:4}}>{sesion?.fecha} · {jugadores.length} jugadores</div>
               </div>
-              <div style={{display:"flex",gap:16"}}>
+              <div style={{display:"flex",gap:16}}>
                 {[
                   {label:"Jugadores",val:jugadores.length,color:"#fff"},
                   {label:"Dist. Promedio",val:`${avgDist.toLocaleString()}m`,color:"#00e676"},
