@@ -1271,7 +1271,7 @@ export default function PerfLoad() {
     const [loadingGps, setLoadingGps] = useState(false);
 
     // Fetch all GPS rows from sheet
-    React.useEffect(() => {
+    useEffect(() => {
       setLoadingGps(true);
       fetch(`${GPS_SCRIPT_URL}?tipo=gps`)
         .then(r => r.json())
