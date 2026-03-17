@@ -1492,11 +1492,11 @@ export default function PerfLoad() {
                       return (
                         <div key={i} style={{display:'flex',alignItems:'center',gap:6,marginBottom:3}}>
                           <div style={{width:3,height:12,background:pc,borderRadius:1,flexShrink:0}}/>
-                          <div style={{width:90,fontSize:8,color:'#374151',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap',flexShrink:0}}>{(r.Jugador||'').split(' ')[0]} {(r.Jugador||'').split(' ')[1]?.[0]}.</div>
+                          <div style={{width:90,fontSize:8,color:'#1e293b',fontWeight:500,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap',flexShrink:0}}>{(r.Jugador||'').split(' ')[0]} {(r.Jugador||'').split(' ')[1]?.[0]}.</div>
                           <div style={{flex:1,height:10,background:'#e5e7eb',borderRadius:2,overflow:'hidden'}}>
                             <div style={{height:'100%',width:`${pct}%`,background:color,borderRadius:2}}/>
                           </div>
-                          <div style={{width:45,fontSize:8,fontWeight:700,color:'#111',fontFamily:'monospace',textAlign:'right',flexShrink:0}}>{key==='VelMax'?val.toFixed(1):Math.round(val).toLocaleString()}</div>
+                          <div style={{width:45,fontSize:8,fontWeight:700,color:'#111827',fontFamily:'monospace',textAlign:'right',flexShrink:0}}>{key==='VelMax'?val.toFixed(1):Math.round(val).toLocaleString()}</div>
                         </div>
                       );
                     })}
@@ -1536,11 +1536,11 @@ export default function PerfLoad() {
                         <div style={{fontSize:9,fontWeight:700,color:'#64748b',textTransform:'uppercase',letterSpacing:'0.08em',marginBottom:10,borderLeft:`3px solid ${color}`,paddingLeft:6}}>{label}</div>
                         {partData.map((d,i) => (
                           <div key={i} style={{display:'flex',alignItems:'center',gap:6,marginBottom:4}}>
-                            <div style={{width:70,fontSize:7.5,color:isCurrent(d.full)?'#111':'#64748b',fontWeight:isCurrent(d.full)?700:400,flexShrink:0,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{d.label.replace('\n',' ')}</div>
+                            <div style={{width:70,fontSize:7.5,color:'#1e293b',fontWeight:isCurrent(d.full)?700:500,flexShrink:0,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{d.label.replace('\n',' ')}</div>
                             <div style={{flex:1,height:12,background:'#e5e7eb',borderRadius:2,overflow:'hidden'}}>
                               <div style={{height:'100%',width:`${(d.avg/maxV)*100}%`,background:isCurrent(d.full)?color:`${color}60`,borderRadius:2}}/>
                             </div>
-                            <div style={{width:50,fontSize:8,fontWeight:700,color:isCurrent(d.full)?'#111':'#64748b',fontFamily:'monospace',textAlign:'right'}}>{d.avg.toLocaleString()}</div>
+                            <div style={{width:50,fontSize:8,fontWeight:700,color:'#111',fontFamily:'monospace',textAlign:'right'}}>{d.avg.toLocaleString()}</div>
                           </div>
                         ))}
                       </div>
@@ -1571,9 +1571,15 @@ export default function PerfLoad() {
       const sc = statusCfg[jugadorActual.status];
       const w = jugadorActual.wellness;
 
-      // All matches for this player for consolidado
-      const partJug = filasJug.filter(r => r.Actividad && r.Actividad.toLowerCase().includes('fecha'))
-        .sort((a,b) => a.Fecha.localeCompare(b.Fecha));
+      // All matches for this player - deduplicate by Actividad, keep max duration
+      const _partMap = {};
+      filasJug.filter(r => r.Actividad && r.Actividad.toLowerCase().includes('fecha')).forEach(r => {
+        const key = r.Actividad;
+        if (!_partMap[key] || parseFloat(r.Duracion||0) > parseFloat(_partMap[key].Duracion||0)) {
+          _partMap[key] = r;
+        }
+      });
+      const partJug = Object.values(_partMap).sort((a,b) => a.Fecha.localeCompare(b.Fecha));
 
       return (
         <div id="informe-render" style={{background:'#fff',fontFamily:"'Barlow',sans-serif",fontSize:11}}>
@@ -1725,11 +1731,11 @@ export default function PerfLoad() {
                         const isSel = diasSelec.includes(r.Fecha);
                         return (
                           <div key={i} style={{display:'flex',alignItems:'center',gap:6,marginBottom:3}}>
-                            <div style={{width:80,fontSize:7.5,color:isSel?'#111':'#64748b',fontWeight:isSel?700:400,flexShrink:0,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{r.Actividad.replace('Fecha ','F').replace(' 26-1','').replace(' VS ',' vs ')}</div>
+                            <div style={{width:80,fontSize:7.5,color:'#1e293b',fontWeight:isSel?700:500,flexShrink:0,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{r.Actividad.replace('Fecha ','F').replace(' 26-1','').replace(' VS ',' vs ')}</div>
                             <div style={{flex:1,height:10,background:'#e5e7eb',borderRadius:2,overflow:'hidden'}}>
                               <div style={{height:'100%',width:`${pct}%`,background:isSel?color:`${color}55`,borderRadius:2}}/>
                             </div>
-                            <div style={{width:45,fontSize:8,fontWeight:700,color:isSel?'#111':'#64748b',fontFamily:'monospace',textAlign:'right'}}>{key==='VelMax'?val.toFixed(1):Math.round(val).toLocaleString()}</div>
+                            <div style={{width:45,fontSize:8,fontWeight:700,color:'#111',fontFamily:'monospace',textAlign:'right'}}>{key==='VelMax'?val.toFixed(1):Math.round(val).toLocaleString()}</div>
                           </div>
                         );
                       })}
