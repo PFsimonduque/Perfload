@@ -172,6 +172,7 @@ const SEED_PLAYERS = [
 ];
 
 const APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbws-dAve2aw71GZhGA58PnNdPY8H3HFqWfLsyHzqyQ5xjPIpyxarmtoyuZJXMbu--pV/exec";
+const GPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbykIhkZWn3CuYqETRgb9HQBR2dRBdj8r43b4czbTLQ-tDXRwDg6Q4WWVRJpKsmOqZ6hrQ/exec";
 
 const SEED_WELLNESS = [
   { jugador:"Hector Arango", sueno:5, fatiga:4, dolor:3, humor:6, estres:6, rpe:8 },
@@ -314,6 +315,7 @@ export default function PerfLoad() {
   const [selPlayer, setSelPlayer] = useState(null);
   const [gpsPeriod, setGpsPeriod] = useState('ultima');
   const [gConnected, setGConnected] = useState(false);
+  const [gpsConnected, setGpsConnected] = useState(false);
   const [loaded, setLoaded]       = useState(false);
 
   useEffect(()=>{ setTimeout(()=>setLoaded(true),120); },[]);
@@ -417,8 +419,70 @@ export default function PerfLoad() {
     if (!silent) setWellnessLoading(false);
   }, []);
 
-  // Auto-fetch wellness al cargar
-  useEffect(() => { fetchWellness(true); }, [fetchWellness]);
+  // ── Fetch GPS desde Sheet ──
+  const fetchGPS = useCallback(async (silent=false) => {
+    try {
+      const res = await fetch(`${GPS_SCRIPT_URL}?tipo=gps`);
+      const rows = await res.json();
+      if (Array.isArray(rows) && rows.length > 0) {
+        const pf = v => { const n = parseFloat(String(v).replace(',','.')); return isNaN(n) ? 0 : n; };
+        const byPlayer = {};
+        rows.forEach(r => {
+          const nombre = (r.Jugador || '').trim();
+          if (!nombre) return;
+          const fecha = String(r.Fecha || '');
+          if (!byPlayer[nombre] || fecha > String(byPlayer[nombre].Fecha || '')) {
+            byPlayer[nombre] = r;
+          }
+        });
+        setPlayers(prev => prev.map(p => {
+          const nameParts = p.nombre.toLowerCase().split(" ").filter(x => x.length > 2);
+          const matchKey = Object.keys(byPlayer).find(k => {
+            const kLower = k.toLowerCase();
+            return nameParts.some(part => kLower.includes(part));
+          });
+          if (!matchKey) return p;
+          const match = byPlayer[matchKey];
+          const newCat = {
+            distancia:  pf(match.Distancia),
+            playerLoad: pf(match.PlayerLoad),
+            velMax:     pf(match.VelMax),
+            mpm:        pf(match.MPM),
+            hsr:        pf(match.HSR),
+            sprint:     pf(match.Sprint),
+            sprintsN:   pf(match.NSprintsH),
+            acelsM:     pf(match.AcelsM),
+            acelsH:     pf(match.AcelsH),
+            decelsM:    pf(match.DecelsM),
+            decelsH:    pf(match.DecelsH),
+            actividad:  String(match.Actividad || ''),
+            fecha:      String(match.Fecha || ''),
+          };
+          const cargaDia = newCat.playerLoad > 0 ? newCat.playerLoad : newCat.distancia / 100;
+          const newLoads = [...p.loads, Math.round(cargaDia)].slice(-28);
+          return { ...p, cat: newCat, loads: newLoads };
+        }));
+        setGpsConnected(true);
+        if (!silent) showFlash(`✓ GPS actualizado · ${Object.keys(byPlayer).length} jugadores`, C.green);
+      }
+    } catch(e) {
+      if (!silent) showFlash("⚠ Error leyendo GPS del Sheet", C.red);
+    }
+  }, []);
+
+  // Auto-fetch GPS al cargar + polling cada 5 minutos
+  useEffect(() => {
+    fetchGPS(true);
+    const interval = setInterval(() => fetchGPS(true), 5 * 60 * 1000);
+    return () => clearInterval(interval);
+  }, [fetchGPS]);
+
+  // Auto-fetch wellness al cargar + polling cada 2 minutos
+  useEffect(() => {
+    fetchWellness(true);
+    const interval = setInterval(() => fetchWellness(true), 2 * 60 * 1000);
+    return () => clearInterval(interval);
+  }, [fetchWellness]);
 
   // ── Connect Google Sheets ──
   const connectGoogle = () => { fetchWellness(false); };
@@ -1541,7 +1605,7 @@ export default function PerfLoad() {
         <div style={{padding:"14px 18px",borderTop:`1px solid ${C.border}`}}>
           <div style={{fontSize:9,color:C.dim,textTransform:"uppercase",letterSpacing:"0.08em"}}>Fuentes activas</div>
           <div style={{marginTop:6,display:"flex",flexDirection:"column",gap:4}}>
-            {[{label:"GPS",color:catRaw?C.green:C.dim},{label:"Wyscout",color:wysRaw?C.blue:C.dim},{label:"Wellness",color:gConnected?C.purple:C.dim}].map((s,i)=>(
+            {[{label:"GPS",color:(catRaw||gpsConnected)?C.green:C.dim},{label:"Wyscout",color:wysRaw?C.blue:C.dim},{label:"Wellness",color:gConnected?C.purple:C.dim}].map((s,i)=>(
               <div key={i} style={{display:"flex",alignItems:"center",gap:5}}>
                 <div style={{width:5,height:5,borderRadius:"50%",background:s.color}}/>
                 <span style={{fontSize:9,color:s.color}}>{s.label}</span>
