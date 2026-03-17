@@ -1641,7 +1641,7 @@ export default function PerfLoad() {
                               <div key={i} style={{marginBottom:6}}>
                                 <div style={{display:'flex',justifyContent:'space-between',marginBottom:2}}>
                                   <span style={{fontSize:9,color:'#374151',fontWeight:500}}>{l}</span>
-                                  <span style={{fontSize:9,fontWeight:700,fontFamily:'monospace'}}>{Math.round(val).toLocaleString()} {u}</span>
+                                  <span style={{fontSize:9,fontWeight:800,fontFamily:'monospace',color:'#111827'}}>{Math.round(val).toLocaleString()} {u}</span>
                                 </div>
                                 <div style={{height:5,background:'#e5e7eb',borderRadius:2}}>
                                   <div style={{height:'100%',width:`${pct}%`,background:c,borderRadius:2}}/>
@@ -1664,7 +1664,7 @@ export default function PerfLoad() {
                               <div key={i} style={{marginBottom:6}}>
                                 <div style={{display:'flex',justifyContent:'space-between',marginBottom:2}}>
                                   <span style={{fontSize:9,color:'#374151',fontWeight:500}}>{l}</span>
-                                  <span style={{fontSize:9,fontWeight:700,fontFamily:'monospace'}}>{k==='VelMax'?val.toFixed(1):Math.round(val)} {u}</span>
+                                  <span style={{fontSize:9,fontWeight:800,fontFamily:'monospace',color:'#111827'}}>{k==='VelMax'?val.toFixed(1):Math.round(val)} {u}</span>
                                 </div>
                                 <div style={{height:5,background:'#e5e7eb',borderRadius:2}}>
                                   <div style={{height:'100%',width:`${pct}%`,background:c,borderRadius:2}}/>
