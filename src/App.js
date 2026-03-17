@@ -1406,7 +1406,7 @@ export default function PerfLoad() {
                 ].map((k,i) => (
                   <div key={i} style={{background:'#fff',border:'1px solid #e2e8f0',borderRadius:6,padding:'8px 10px',textAlign:'center'}}>
                     <div style={{fontSize:16,fontWeight:900,fontFamily:"'Barlow Condensed',sans-serif",color:'#111'}}>{k.v}</div>
-                    <div style={{fontSize:8,color:'#94a3b8',textTransform:'uppercase',letterSpacing:'0.05em',marginTop:2}}>{k.l}</div>
+                    <div style={{fontSize:8,color:'#475569',textTransform:'uppercase',letterSpacing:'0.05em',marginTop:2}}>{k.l}</div>
                   </div>
                 ))}
               </div>
@@ -1477,14 +1477,14 @@ export default function PerfLoad() {
                 {key:'HMLD',label:'HMLD (m)',color:'#ffab40'},
                 {key:'VelMax',label:'VELOCIDAD MÁXIMA (km/h)',color:'#40c4ff'},
                 {key:'AcelsH',label:'ACELERACIONES >3 m/s²',color:'#fbbf24'},
-                {key:'DecelsH',label:'DESACELERACIONES >3 m/s²',color:'#60a5fa'},
+                {key:'DecelsH',label:'DESACELERACIONES <-3 m/s²',color:'#60a5fa'},
                 {key:'NSprintsH',label:'# SPRINTS >25 km/h',color:'#f97316'},
               ].map(({key,label,color}) => {
                 const chartData = [...sorted].sort((a,b)=>pf(b[key])-pf(a[key]));
                 const maxV = Math.max(...chartData.map(r=>pf(r[key]))) || 1;
                 return (
                   <div key={key} style={{background:'#f8fafc',border:'1px solid #e2e8f0',borderRadius:8,padding:'10px 12px'}}>
-                    <div style={{fontSize:9,fontWeight:700,color:'#64748b',textTransform:'uppercase',letterSpacing:'0.08em',marginBottom:8,borderLeft:`3px solid ${color}`,paddingLeft:6}}>{label}</div>
+                    <div style={{fontSize:9,fontWeight:700,color:'#334155',textTransform:'uppercase',letterSpacing:'0.08em',marginBottom:8,borderLeft:`3px solid ${color}`,paddingLeft:6}}>{label}</div>
                     {chartData.map((r,i) => {
                       const val = pf(r[key]);
                       const pct = (val/maxV)*100;
@@ -1533,7 +1533,7 @@ export default function PerfLoad() {
                     const isCurrent = (full) => full === sesionSelec;
                     return (
                       <div key={key} style={{background:'#f8fafc',border:'1px solid #e2e8f0',borderRadius:8,padding:'10px 12px'}}>
-                        <div style={{fontSize:9,fontWeight:700,color:'#64748b',textTransform:'uppercase',letterSpacing:'0.08em',marginBottom:10,borderLeft:`3px solid ${color}`,paddingLeft:6}}>{label}</div>
+                        <div style={{fontSize:9,fontWeight:700,color:'#334155',textTransform:'uppercase',letterSpacing:'0.08em',marginBottom:10,borderLeft:`3px solid ${color}`,paddingLeft:6}}>{label}</div>
                         {partData.map((d,i) => (
                           <div key={i} style={{display:'flex',alignItems:'center',gap:6,marginBottom:4}}>
                             <div style={{width:70,fontSize:7.5,color:'#1e293b',fontWeight:isCurrent(d.full)?700:500,flexShrink:0,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{d.label.replace('\n',' ')}</div>
@@ -1553,8 +1553,8 @@ export default function PerfLoad() {
 
           {/* Footer */}
           <div style={{padding:'8px 24px',borderTop:'1px solid #e2e8f0',display:'flex',justifyContent:'space-between'}}>
-            <div style={{fontSize:8,color:'#94a3b8'}}>⬡ PERFLOAD · Orsomarso SC · BCA 2026-1</div>
-            <div style={{fontSize:8,color:'#94a3b8'}}>{new Date().toLocaleDateString('es-CO',{year:'numeric',month:'long',day:'numeric'})}</div>
+            <div style={{fontSize:8,color:'#475569'}}>⬡ PERFLOAD · Orsomarso SC · BCA 2026-1</div>
+            <div style={{fontSize:8,color:'#475569'}}>{new Date().toLocaleDateString('es-CO',{year:'numeric',month:'long',day:'numeric'})}</div>
           </div>
         </div>
       );
@@ -1622,7 +1622,7 @@ export default function PerfLoad() {
                         ].map((k,i) => (
                           <div key={i} style={{background:'#fff',border:'1px solid #e2e8f0',borderRadius:6,padding:'8px',textAlign:'center'}}>
                             <div style={{fontSize:16,fontWeight:900,color:k.c,fontFamily:"'Barlow Condensed',sans-serif",lineHeight:1}}>{k.v}</div>
-                            <div style={{fontSize:8,color:'#94a3b8',textTransform:'uppercase',marginTop:2}}>{k.l}</div>
+                            <div style={{fontSize:8,color:'#475569',textTransform:'uppercase',marginTop:2}}>{k.l}</div>
                           </div>
                         ))}
                       </div>
@@ -1640,7 +1640,7 @@ export default function PerfLoad() {
                             return (
                               <div key={i} style={{marginBottom:6}}>
                                 <div style={{display:'flex',justifyContent:'space-between',marginBottom:2}}>
-                                  <span style={{fontSize:9,color:'#64748b'}}>{l}</span>
+                                  <span style={{fontSize:9,color:'#374151',fontWeight:500}}>{l}</span>
                                   <span style={{fontSize:9,fontWeight:700,fontFamily:'monospace'}}>{Math.round(val).toLocaleString()} {u}</span>
                                 </div>
                                 <div style={{height:5,background:'#e5e7eb',borderRadius:2}}>
@@ -1656,14 +1656,14 @@ export default function PerfLoad() {
                             {k:'VelMax',l:'Vel. Máxima',c:'#40c4ff',max:maxRef.VelMax,u:'km/h'},
                             {k:'NSprintsH',l:'# Sprints',c:'#ef4444',max:maxRef.NSprintsH,u:''},
                             {k:'AcelsH',l:'Acels >3 m/s²',c:'#fbbf24',max:maxRef.AcelsH,u:''},
-                            {k:'DecelsH',l:'Decels >3 m/s²',c:'#60a5fa',max:maxRef.DecelsH,u:''},
+                            {k:'DecelsH',l:'Decels <-3 m/s²',c:'#60a5fa',max:maxRef.DecelsH,u:''},
                           ].map(({k,l,c,max,u},i) => {
                             const val = pf(r[k]);
                             const pct = Math.min(100,(val/max)*100);
                             return (
                               <div key={i} style={{marginBottom:6}}>
                                 <div style={{display:'flex',justifyContent:'space-between',marginBottom:2}}>
-                                  <span style={{fontSize:9,color:'#64748b'}}>{l}</span>
+                                  <span style={{fontSize:9,color:'#374151',fontWeight:500}}>{l}</span>
                                   <span style={{fontSize:9,fontWeight:700,fontFamily:'monospace'}}>{k==='VelMax'?val.toFixed(1):Math.round(val)} {u}</span>
                                 </div>
                                 <div style={{height:5,background:'#e5e7eb',borderRadius:2}}>
@@ -1682,7 +1682,7 @@ export default function PerfLoad() {
               {/* Wellness del día */}
               {w && (
                 <div style={{background:'#f8fafc',border:'1px solid #e2e8f0',borderRadius:8,padding:'10px 14px'}}>
-                  <div style={{fontSize:9,fontWeight:700,color:'#64748b',textTransform:'uppercase',letterSpacing:'0.1em',marginBottom:8}}>WELLNESS DEL DÍA</div>
+                  <div style={{fontSize:9,fontWeight:700,color:'#334155',textTransform:'uppercase',letterSpacing:'0.1em',marginBottom:8}}>WELLNESS DEL DÍA</div>
                   <div style={{display:'flex',gap:12,alignItems:'center'}}>
                     {[{l:'Sueño',v:w.sueno,inv:false},{l:'Fatiga',v:w.fatiga,inv:true},{l:'Dolor',v:w.dolor,inv:true},{l:'Humor',v:w.humor,inv:false},{l:'Estrés',v:w.estres,inv:true}].map((d,i) => {
                       const score = d.inv ? 10-d.v : d.v;
@@ -1695,7 +1695,7 @@ export default function PerfLoad() {
                       );
                     })}
                     <div style={{marginLeft:'auto',display:'flex',alignItems:'center',gap:8,padding:'8px 14px',background:'#fff',border:'1px solid #e2e8f0',borderRadius:6}}>
-                      <span style={{fontSize:9,color:'#64748b'}}>RPE</span>
+                      <span style={{fontSize:9,color:'#374151',fontWeight:500}}>RPE</span>
                       <span style={{fontSize:20,fontWeight:900,color:'#f97316',fontFamily:"'Barlow Condensed',sans-serif"}}>{w.rpe}/10</span>
                     </div>
                   </div>
@@ -1719,12 +1719,12 @@ export default function PerfLoad() {
                   {key:'VelMax',label:'VELOCIDAD MÁXIMA (km/h)',color:'#40c4ff'},
                   {key:'NSprintsH',label:'# SPRINTS',color:'#f97316'},
                   {key:'AcelsH',label:'ACELERACIONES >3 m/s²',color:'#fbbf24'},
-                  {key:'DecelsH',label:'DESACELERACIONES >3 m/s²',color:'#60a5fa'},
+                  {key:'DecelsH',label:'DESACELERACIONES <-3 m/s²',color:'#60a5fa'},
                 ].map(({key,label,color}) => {
                   const maxV = Math.max(...partJug.map(r=>pf(r[key]))) || 1;
                   return (
                     <div key={key} style={{background:'#f8fafc',border:'1px solid #e2e8f0',borderRadius:8,padding:'10px 12px'}}>
-                      <div style={{fontSize:9,fontWeight:700,color:'#64748b',textTransform:'uppercase',letterSpacing:'0.08em',marginBottom:8,borderLeft:`3px solid ${color}`,paddingLeft:6}}>{label}</div>
+                      <div style={{fontSize:9,fontWeight:700,color:'#334155',textTransform:'uppercase',letterSpacing:'0.08em',marginBottom:8,borderLeft:`3px solid ${color}`,paddingLeft:6}}>{label}</div>
                       {partJug.map((r,i) => {
                         const val = pf(r[key]);
                         const pct = (val/maxV)*100;
@@ -1744,8 +1744,8 @@ export default function PerfLoad() {
                 })}
               </div>
               <div style={{marginTop:12,borderTop:'1px solid #e2e8f0',paddingTop:8,display:'flex',justifyContent:'space-between'}}>
-                <div style={{fontSize:8,color:'#94a3b8'}}>⬡ PERFLOAD · Orsomarso SC · BCA 2026-1</div>
-                <div style={{fontSize:8,color:'#94a3b8'}}>{new Date().toLocaleDateString('es-CO',{year:'numeric',month:'long',day:'numeric'})}</div>
+                <div style={{fontSize:8,color:'#475569'}}>⬡ PERFLOAD · Orsomarso SC · BCA 2026-1</div>
+                <div style={{fontSize:8,color:'#475569'}}>{new Date().toLocaleDateString('es-CO',{year:'numeric',month:'long',day:'numeric'})}</div>
               </div>
             </div>
           )}
