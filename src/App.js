@@ -1263,46 +1263,328 @@ export default function PerfLoad() {
 
   // ── INFORMES PDF ──
   const PageInformes = () => {
-    const [tipoInforme, setTipoInforme] = useState("individual");
+    const [modo, setModo] = useState("sesion"); // "jugador" | "sesion"
     const [jugSelec, setJugSelec] = useState(playersWithACWR[0]?.id || null);
-    const [jugMulti, setJugMulti] = useState([]);
-    const [tipoSesion, setTipoSesion] = useState("MD-1");
+    const [sesionSelec, setSesionSelec] = useState(null);
     const [generando, setGenerando] = useState(false);
     const [preview, setPreview] = useState(false);
 
     const jugadorActual = playersWithACWR.find(p => p.id === jugSelec);
-    const jugadoresSelec = tipoInforme === "individual"
-      ? (jugadorActual ? [jugadorActual] : [])
-      : jugMulti.length > 0
-        ? playersWithACWR.filter(p => jugMulti.includes(p.id))
-        : playersWithACWR;
 
-    const toggleJugMulti = (id) => {
-      setJugMulti(prev => prev.includes(id) ? prev.filter(x=>x!==id) : [...prev, id]);
-    };
+    // Obtener sesiones únicas del sheet GPS (usando cat.actividad)
+    const sesionesUnicas = [...new Map(
+      playersWithACWR
+        .filter(p => p.cat?.actividad)
+        .map(p => [p.cat.actividad, { actividad: p.cat.actividad, fecha: p.cat.fecha }])
+    ).values()].sort((a,b) => (b.fecha||'').localeCompare(a.fecha||''));
 
-    const generarPDF = () => {
+    // Jugadores de la sesion seleccionada
+    const jugadoresSesion = sesionSelec
+      ? playersWithACWR.filter(p => p.cat?.actividad === sesionSelec)
+      : playersWithACWR.filter(p => p.cat?.actividad);
+
+    const generarInforme = () => {
       setGenerando(true);
-      setTimeout(() => {
-        setGenerando(false);
-        setPreview(true);
-      }, 1800);
+      setTimeout(() => { setGenerando(false); setPreview(true); }, 1200);
     };
 
-    const MetricRow = ({ label, val, prev, color, unit="" }) => {
-      const diff = prev ? val - prev : 0;
-      const up = diff > 0;
+    const imprimirPDF = () => {
+      const el = document.getElementById("informe-render");
+      if (!el) return;
+      const w = window.open("","_blank");
+      w.document.write(`<!DOCTYPE html><html><head><title>PerfLoad Informe</title>
+        <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@400;600;700;800;900&family=Barlow:wght@400;500;600&display=swap" rel="stylesheet">
+        <style>
+          *{box-sizing:border-box;margin:0;padding:0;}
+          body{font-family:'Barlow',sans-serif;background:#fff;color:#111;-webkit-print-color-adjust:exact;print-color-adjust:exact;}
+          @media print{body{background:#fff;}}
+        </style></head><body>${el.innerHTML}</body></html>`);
+      w.document.close();
+      setTimeout(() => w.print(), 500);
+    };
+
+    // Colores por posición
+    const posColor = { POR:"#f59e0b", LAT:"#3b82f6", DC:"#ef4444", MCD:"#8b5cf6", MCI:"#06b6d4", MCO:"#10b981", EXT:"#f97316", DEL:"#ec4899" };
+    const getPosColor = pos => posColor[pos] || "#64748b";
+
+    // Métricas para ranking
+    const metricasClave = [
+      { key:"distancia", label:"Distancia", unit:"m", color:"#00e676" },
+      { key:"playerLoad", label:"Player Load", unit:"UA", color:"#ffab40" },
+      { key:"velMax", label:"Vel. Máx", unit:"km/h", color:"#40c4ff" },
+      { key:"hsr", label:"HSR", unit:"m", color:"#ce93d8" },
+      { key:"sprintsN", label:"Sprints", unit:"", color:"#ff6b6b" },
+    ];
+
+    const BarHoriz = ({ val, max, color, label, unit }) => {
+      const pct = max > 0 ? Math.min(100, (val/max)*100) : 0;
       return (
-        <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center",
-          padding:"7px 0", borderBottom:`1px solid ${C.border}` }}>
-          <span style={{ fontSize:11, color:C.muted }}>{label}</span>
-          <div style={{ display:"flex", alignItems:"center", gap:8 }}>
-            {prev !== undefined && (
-              <span style={{ fontSize:10, color: up ? C.green : C.red }}>
-                {up ? "▲" : "▼"} {Math.abs(diff).toFixed(0)}{unit}
-              </span>
-            )}
-            <span style={{ fontSize:13, fontWeight:700, fontFamily:"monospace", color }}>{val}{unit}</span>
+        <div style={{marginBottom:6}}>
+          <div style={{display:"flex",justifyContent:"space-between",fontSize:10,marginBottom:3,color:"#555"}}>
+            <span>{label}</span>
+            <span style={{fontWeight:700,color:"#111"}}>{val?.toLocaleString?.() ?? val}{unit ? ` ${unit}` : ""}</span>
+          </div>
+          <div style={{height:6,background:"#e5e7eb",borderRadius:3,overflow:"hidden"}}>
+            <div style={{height:"100%",width:`${pct}%`,background:color,borderRadius:3,transition:"width 0.8s"}}/>
+          </div>
+        </div>
+      );
+    };
+
+    const StatBox = ({ label, val, unit="", color="#111", sub="" }) => (
+      <div style={{background:"#f8fafc",border:"1px solid #e2e8f0",borderRadius:8,padding:"10px 14px",textAlign:"center"}}>
+        <div style={{fontSize:22,fontWeight:900,color,fontFamily:"'Barlow Condensed',sans-serif",lineHeight:1}}>{val}</div>
+        {unit && <div style={{fontSize:10,color:"#94a3b8",fontWeight:600}}>{unit}</div>}
+        <div style={{fontSize:10,color:"#64748b",marginTop:3,fontWeight:600,textTransform:"uppercase",letterSpacing:"0.05em"}}>{label}</div>
+        {sub && <div style={{fontSize:9,color:"#94a3b8",marginTop:2}}>{sub}</div>}
+      </div>
+    );
+
+    // ── INFORME JUGADOR ──
+    const InformeJugador = () => {
+      if (!jugadorActual) return null;
+      const p = jugadorActual;
+      const w = p.wellness;
+      const cat = p.cat;
+      const sc = statusCfg[p.status];
+      const loads7 = p.loads.slice(-7);
+      const maxLoad = Math.max(...loads7);
+
+      return (
+        <div id="informe-render" style={{background:"#fff",maxWidth:900,margin:"0 auto",fontFamily:"'Barlow',sans-serif"}}>
+          {/* HEADER */}
+          <div style={{background:"#06080f",color:"#fff",padding:"28px 32px",position:"relative",overflow:"hidden"}}>
+            <div style={{position:"absolute",top:0,right:0,width:300,height:"100%",background:`linear-gradient(135deg,transparent 40%,${sc.color}18)`,pointerEvents:"none"}}/>
+            <div style={{display:"flex",alignItems:"center",gap:20,position:"relative"}}>
+              <div style={{width:64,height:64,borderRadius:12,background:`${sc.color}20`,border:`2px solid ${sc.color}`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:24,fontWeight:900,color:sc.color,fontFamily:"'Barlow Condensed',sans-serif"}}>
+                {p.pos}
+              </div>
+              <div style={{flex:1}}>
+                <div style={{fontSize:28,fontWeight:900,fontFamily:"'Barlow Condensed',sans-serif",letterSpacing:"-0.02em",lineHeight:1}}>{p.nombre.toUpperCase()}</div>
+                <div style={{fontSize:12,color:"rgba(255,255,255,0.5)",marginTop:4}}>{p.pos} · {p.edad} años · {p.peso} kg · {p.talla} cm</div>
+                <div style={{marginTop:6,display:"flex",gap:8,alignItems:"center"}}>
+                  <span style={{padding:"3px 10px",borderRadius:4,fontSize:11,fontWeight:700,background:`${sc.color}25`,color:sc.color,border:`1px solid ${sc.color}40`}}>{sc.label.toUpperCase()}</span>
+                  <span style={{fontSize:11,color:"rgba(255,255,255,0.4)"}}>{cat?.fecha} · {cat?.actividad}</span>
+                </div>
+              </div>
+              <div style={{textAlign:"right"}}>
+                <div style={{fontSize:48,fontWeight:900,color:acwrColor(p.acwr),fontFamily:"'Barlow Condensed',sans-serif",lineHeight:1}}>{p.acwr}</div>
+                <div style={{fontSize:10,color:"rgba(255,255,255,0.4)",textTransform:"uppercase",letterSpacing:"0.1em"}}>ACWR</div>
+                <div style={{fontSize:10,color:acwrColor(p.acwr),marginTop:2}}>{acwrLabel(p.acwr)}</div>
+              </div>
+            </div>
+            <div style={{marginTop:16,display:"flex",gap:6,alignItems:"center"}}>
+              <div style={{fontSize:9,color:"rgba(255,255,255,0.3)",textTransform:"uppercase",letterSpacing:"0.1em",marginRight:4}}>⬡ PERFLOAD</div>
+              <div style={{flex:1,height:1,background:"rgba(255,255,255,0.08)"}}/>
+              <div style={{fontSize:9,color:"rgba(255,255,255,0.3)"}}>ORSOMARSO SC · BCA 2026-1</div>
+            </div>
+          </div>
+
+          <div style={{padding:"24px 32px"}}>
+            {/* KPIs PRINCIPALES */}
+            <div style={{marginBottom:20}}>
+              <div style={{fontSize:11,fontWeight:700,color:"#94a3b8",textTransform:"uppercase",letterSpacing:"0.1em",marginBottom:12}}>Métricas de la sesión</div>
+              <div style={{display:"grid",gridTemplateColumns:"repeat(5,1fr)",gap:8}}>
+                {[
+                  { label:"Distancia", val:Math.round(cat?.distancia||0).toLocaleString(), unit:"m", color:"#00e676" },
+                  { label:"Player Load", val:Math.round(cat?.playerLoad||0), unit:"UA", color:"#ffab40" },
+                  { label:"Vel. Máx", val:(cat?.velMax||0).toFixed(1), unit:"km/h", color:"#40c4ff" },
+                  { label:"HSR", val:Math.round(cat?.hsr||0), unit:"m", color:"#ce93d8" },
+                  { label:"m/min", val:Math.round(cat?.mpm||0), unit:"m/min", color:"#f97316" },
+                ].map((k,i) => <StatBox key={i} {...k}/>)}
+              </div>
+            </div>
+
+            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:20,marginBottom:20}}>
+              {/* BARRAS GPS */}
+              <div>
+                <div style={{fontSize:11,fontWeight:700,color:"#94a3b8",textTransform:"uppercase",letterSpacing:"0.1em",marginBottom:12}}>Análisis de rendimiento</div>
+                {[
+                  { label:"Distancia total", val:Math.round(cat?.distancia||0), max:12000, color:"#00e676", unit:"m" },
+                  { label:"Player Load", val:Math.round(cat?.playerLoad||0), max:1200, color:"#ffab40", unit:"UA" },
+                  { label:"HSR (>19.8 km/h)", val:Math.round(cat?.hsr||0), max:800, color:"#ce93d8", unit:"m" },
+                  { label:"Sprints (>25 km/h)", val:cat?.sprintsN||0, max:20, color:"#ef4444", unit:"" },
+                  { label:"Acels Med+Alto", val:(cat?.acelsM||0)+(cat?.acelsH||0), max:50, color:"#fbbf24", unit:"" },
+                  { label:"Decels Med+Alto", val:(cat?.decelsM||0)+(cat?.decelsH||0), max:50, color:"#60a5fa", unit:"" },
+                ].map((m,i) => <BarHoriz key={i} {...m}/>)}
+              </div>
+
+              {/* WELLNESS + TENDENCIA */}
+              <div>
+                <div style={{fontSize:11,fontWeight:700,color:"#94a3b8",textTransform:"uppercase",letterSpacing:"0.1em",marginBottom:12}}>Wellness del día</div>
+                {w ? (
+                  <div style={{background:"#f8fafc",borderRadius:8,border:"1px solid #e2e8f0",padding:"14px"}}>
+                    <div style={{display:"grid",gridTemplateColumns:"repeat(5,1fr)",gap:6,marginBottom:12}}>
+                      {[
+                        {label:"Sueño",val:w.sueno,inv:false},{label:"Fatiga",val:w.fatiga,inv:true},
+                        {label:"Dolor",val:w.dolor,inv:true},{label:"Humor",val:w.humor,inv:false},{label:"Estrés",val:w.estres,inv:true}
+                      ].map((d,i) => {
+                        const v = d.inv ? 10-d.val : d.val;
+                        const c = v>=7?"#10b981":v>=5?"#f59e0b":"#ef4444";
+                        return (
+                          <div key={i} style={{textAlign:"center"}}>
+                            <div style={{width:36,height:36,borderRadius:"50%",background:`${c}15`,border:`2px solid ${c}`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:14,fontWeight:800,color:c,margin:"0 auto 4px"}}>{d.val}</div>
+                            <div style={{fontSize:8,color:"#94a3b8",textTransform:"uppercase"}}>{d.label}</div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                    <div style={{display:"flex",justifyContent:"space-between",padding:"10px 12px",background:"#fff",borderRadius:6,border:"1px solid #e2e8f0"}}>
+                      <span style={{fontSize:11,color:"#64748b",fontWeight:600}}>RPE sesión</span>
+                      <span style={{fontSize:20,fontWeight:900,color:"#f97316",fontFamily:"'Barlow Condensed',sans-serif"}}>{w.rpe}/10</span>
+                    </div>
+                  </div>
+                ) : <div style={{padding:"20px",textAlign:"center",color:"#94a3b8",fontSize:12}}>Sin datos de wellness</div>}
+
+                {/* Tendencia 7 días */}
+                <div style={{marginTop:14}}>
+                  <div style={{fontSize:11,fontWeight:700,color:"#94a3b8",textTransform:"uppercase",letterSpacing:"0.1em",marginBottom:10}}>Carga — últimos 7 días</div>
+                  <div style={{display:"flex",gap:4,alignItems:"flex-end",height:60}}>
+                    {loads7.map((v,i) => {
+                      const pct = maxLoad>0?(v/maxLoad)*100:0;
+                      const isLast = i===loads7.length-1;
+                      const col = acwrColor(p.acwr);
+                      return (
+                        <div key={i} style={{flex:1,display:"flex",flexDirection:"column",alignItems:"center",gap:3}}>
+                          <div style={{fontSize:8,color:"#94a3b8"}}>{v}</div>
+                          <div style={{width:"100%",height:`${pct}%`,minHeight:4,background:isLast?col:`${col}50`,borderRadius:"2px 2px 0 0"}}/>
+                          <div style={{fontSize:8,color:"#94a3b8"}}>D{i+1}</div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                  <div style={{display:"flex",justifyContent:"space-between",marginTop:8,padding:"8px 10px",background:"#f8fafc",borderRadius:6,border:"1px solid #e2e8f0"}}>
+                    <span style={{fontSize:10,color:"#64748b"}}>Carga aguda (7d)</span>
+                    <span style={{fontSize:13,fontWeight:700,color:"#111",fontFamily:"'Barlow Condensed',sans-serif"}}>{Math.round(loads7.reduce((a,b)=>a+b,0)/7)} UA/día</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* FOOTER */}
+            <div style={{borderTop:"1px solid #e2e8f0",paddingTop:12,display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+              <div style={{fontSize:9,color:"#94a3b8"}}>⬡ PERFLOAD · Orsomarso SC · BCA 2026-1</div>
+              <div style={{fontSize:9,color:"#94a3b8"}}>{new Date().toLocaleDateString("es-CO",{weekday:"long",year:"numeric",month:"long",day:"numeric"})}</div>
+            </div>
+          </div>
+        </div>
+      );
+    };
+
+    // ── INFORME SESIÓN ──
+    const InformeSesion = () => {
+      const jugadores = jugadoresSesion.sort((a,b) => (b.cat?.distancia||0)-(a.cat?.distancia||0));
+      if (!jugadores.length) return <div style={{textAlign:"center",padding:40,color:"#94a3b8"}}>Selecciona una sesión</div>;
+      const sesion = jugadores[0]?.cat;
+      const avgDist = Math.round(jugadores.reduce((s,p)=>s+(p.cat?.distancia||0),0)/jugadores.length);
+      const avgLoad = Math.round(jugadores.reduce((s,p)=>s+(p.cat?.playerLoad||0),0)/jugadores.length);
+      const avgVel = (jugadores.reduce((s,p)=>s+(p.cat?.velMax||0),0)/jugadores.length).toFixed(1);
+      const maxDist = Math.max(...jugadores.map(p=>p.cat?.distancia||0));
+
+      return (
+        <div id="informe-render" style={{background:"#fff",maxWidth:960,margin:"0 auto",fontFamily:"'Barlow',sans-serif"}}>
+          {/* HEADER */}
+          <div style={{background:"#06080f",color:"#fff",padding:"24px 32px"}}>
+            <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start"}}>
+              <div>
+                <div style={{fontSize:10,color:"rgba(255,255,255,0.3)",textTransform:"uppercase",letterSpacing:"0.15em",marginBottom:6}}>⬡ PERFLOAD · Orsomarso SC · BCA 2026-1</div>
+                <div style={{fontSize:26,fontWeight:900,fontFamily:"'Barlow Condensed',sans-serif",letterSpacing:"-0.01em"}}>{sesion?.actividad?.toUpperCase() || "INFORME DE SESIÓN"}</div>
+                <div style={{fontSize:12,color:"rgba(255,255,255,0.4)",marginTop:4}}>{sesion?.fecha} · {jugadores.length} jugadores</div>
+              </div>
+              <div style={{display:"flex",gap:16"}}>
+                {[
+                  {label:"Jugadores",val:jugadores.length,color:"#fff"},
+                  {label:"Dist. Promedio",val:`${avgDist.toLocaleString()}m`,color:"#00e676"},
+                  {label:"P.Load Prom",val:`${avgLoad} UA`,color:"#ffab40"},
+                  {label:"Vel. Máx Prom",val:`${avgVel} km/h`,color:"#40c4ff"},
+                ].map((k,i) => (
+                  <div key={i} style={{textAlign:"center",minWidth:80}}>
+                    <div style={{fontSize:20,fontWeight:900,color:k.color,fontFamily:"'Barlow Condensed',sans-serif",lineHeight:1}}>{k.val}</div>
+                    <div style={{fontSize:8,color:"rgba(255,255,255,0.3)",textTransform:"uppercase",marginTop:3}}>{k.label}</div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          <div style={{padding:"20px 32px"}}>
+            {/* TABLA PRINCIPAL */}
+            <div style={{fontSize:11,fontWeight:700,color:"#94a3b8",textTransform:"uppercase",letterSpacing:"0.1em",marginBottom:12}}>Resumen individual</div>
+            <div style={{overflowX:"auto",marginBottom:20}}>
+              <table style={{width:"100%",borderCollapse:"collapse",fontSize:11}}>
+                <thead>
+                  <tr style={{background:"#06080f",color:"#fff"}}>
+                    {["Jugador","Pos","Dist (m)","P.Load","Vel Máx","m/min","HSR (m)","Sprints","Acels","Decels","Estado"].map(h=>(
+                      <th key={h} style={{padding:"8px 10px",textAlign:"left",fontSize:9,fontWeight:700,letterSpacing:"0.08em",textTransform:"uppercase",whiteSpace:"nowrap"}}>{h}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {jugadores.map((p,i) => {
+                    const c = p.cat;
+                    const sc = statusCfg[p.status];
+                    const pc = getPosColor(p.pos);
+                    return (
+                      <tr key={p.id} style={{background:i%2===0?"#f8fafc":"#fff",borderBottom:"1px solid #e2e8f0"}}>
+                        <td style={{padding:"8px 10px",fontWeight:700}}>
+                          <div style={{display:"flex",alignItems:"center",gap:6}}>
+                            <div style={{width:3,height:20,background:pc,borderRadius:2}}/>
+                            {p.nombre}
+                          </div>
+                        </td>
+                        <td style={{padding:"8px 10px"}}>
+                          <span style={{padding:"2px 6px",borderRadius:3,fontSize:9,fontWeight:700,background:`${pc}15`,color:pc}}>{p.pos}</span>
+                        </td>
+                        <td style={{padding:"8px 10px",fontFamily:"monospace",fontWeight:700,color:"#00b050"}}>
+                          <div>{Math.round(c?.distancia||0).toLocaleString()}</div>
+                          <div style={{height:3,background:"#e5e7eb",borderRadius:2,marginTop:2,width:60}}>
+                            <div style={{height:"100%",width:`${maxDist>0?((c?.distancia||0)/maxDist)*100:0}%`,background:"#00b050",borderRadius:2}}/>
+                          </div>
+                        </td>
+                        <td style={{padding:"8px 10px",fontFamily:"monospace",color:"#f97316"}}>{Math.round(c?.playerLoad||0)}</td>
+                        <td style={{padding:"8px 10px",fontFamily:"monospace",color:"#3b82f6"}}>{(c?.velMax||0).toFixed(1)}</td>
+                        <td style={{padding:"8px 10px",fontFamily:"monospace"}}>{Math.round(c?.mpm||0)}</td>
+                        <td style={{padding:"8px 10px",fontFamily:"monospace",color:"#8b5cf6"}}>{Math.round(c?.hsr||0)}</td>
+                        <td style={{padding:"8px 10px",fontFamily:"monospace",color:"#ef4444",fontWeight:700}}>{c?.sprintsN||0}</td>
+                        <td style={{padding:"8px 10px",fontFamily:"monospace"}}>{(c?.acelsM||0)+(c?.acelsH||0)}</td>
+                        <td style={{padding:"8px 10px",fontFamily:"monospace"}}>{(c?.decelsM||0)+(c?.decelsH||0)}</td>
+                        <td style={{padding:"8px 10px"}}>
+                          <span style={{padding:"2px 8px",borderRadius:3,fontSize:9,fontWeight:700,background:`${sc.color}15`,color:sc.color}}>{sc.label}</span>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+
+            {/* RANKINGS */}
+            <div style={{fontSize:11,fontWeight:700,color:"#94a3b8",textTransform:"uppercase",letterSpacing:"0.1em",marginBottom:12}}>Rankings de la sesión</div>
+            <div style={{display:"grid",gridTemplateColumns:"repeat(5,1fr)",gap:10,marginBottom:20}}>
+              {metricasClave.map(met => {
+                const sorted = [...jugadores].sort((a,b)=>(b.cat?.[met.key]||0)-(a.cat?.[met.key]||0)).slice(0,3);
+                return (
+                  <div key={met.key} style={{background:"#f8fafc",border:"1px solid #e2e8f0",borderRadius:8,overflow:"hidden"}}>
+                    <div style={{background:met.color,padding:"6px 10px"}}>
+                      <div style={{fontSize:9,fontWeight:700,color:"#06080f",textTransform:"uppercase",letterSpacing:"0.08em"}}>{met.label}</div>
+                    </div>
+                    {sorted.map((p,i) => (
+                      <div key={p.id} style={{display:"flex",alignItems:"center",gap:8,padding:"6px 10px",borderBottom:"1px solid #e2e8f0"}}>
+                        <div style={{width:16,height:16,borderRadius:"50%",background:i===0?"#fbbf24":i===1?"#94a3b8":"#cd7c2e",display:"flex",alignItems:"center",justifyContent:"center",fontSize:9,fontWeight:800,color:"#fff",flexShrink:0}}>{i+1}</div>
+                        <div style={{flex:1,fontSize:10,fontWeight:600,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{p.nombre.split(" ")[0]}</div>
+                        <div style={{fontSize:10,fontWeight:700,fontFamily:"monospace",color:met.color}}>{typeof p.cat?.[met.key]==="number"?Math.round(p.cat[met.key]):p.cat?.[met.key]||0}{met.unit}</div>
+                      </div>
+                    ))}
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* FOOTER */}
+            <div style={{borderTop:"1px solid #e2e8f0",paddingTop:12,display:"flex",justifyContent:"space-between"}}>
+              <div style={{fontSize:9,color:"#94a3b8"}}>⬡ PERFLOAD · Orsomarso SC · BCA 2026-1</div>
+              <div style={{fontSize:9,color:"#94a3b8"}}>{new Date().toLocaleDateString("es-CO",{weekday:"long",year:"numeric",month:"long",day:"numeric"})}</div>
+            </div>
           </div>
         </div>
       );
@@ -1310,255 +1592,99 @@ export default function PerfLoad() {
 
     return (
       <div>
-        <div style={{ fontSize:24, fontWeight:800, letterSpacing:"-0.025em", marginBottom:6 }}>Informes PDF</div>
-        <div style={{ fontSize:12, color:C.muted, marginBottom:22 }}>
-          Genera informes individuales o grupales por tipo de sesión
-        </div>
+        <div style={{fontSize:22,fontWeight:800,letterSpacing:"-0.02em",marginBottom:6,color:"#f0f5ff"}}>Informes PDF</div>
+        <div style={{fontSize:12,color:"rgba(255,255,255,0.42)",marginBottom:20}}>Genera informes profesionales por jugador o sesión</div>
 
-        <div style={{ display:"grid", gridTemplateColumns:"320px 1fr", gap:16 }}>
-          {/* Panel de configuración */}
-          <div style={{ display:"flex", flexDirection:"column", gap:12 }}>
-            {/* Tipo de informe */}
-            <div style={S.card()}>
-              <div style={{ ...S.sec, marginBottom:10 }}>Tipo de informe</div>
-              <div style={{ display:"flex", gap:6 }}>
-                {[["individual","Individual"],["grupal","Grupal / Equipo"]].map(([v,l]) => (
-                  <button key={v} onClick={() => setTipoInforme(v)} style={{
-                    flex:1, padding:"8px", borderRadius:9, fontSize:11, fontWeight:700,
-                    cursor:"pointer", border:`1px solid ${tipoInforme===v?C.green+"50":C.border}`,
-                    background: tipoInforme===v ? `${C.green}15` : "transparent",
-                    color: tipoInforme===v ? C.green : C.muted }}>
+        <div style={{display:"grid",gridTemplateColumns:"300px 1fr",gap:16}}>
+          {/* PANEL CONFIGURACIÓN */}
+          <div style={{display:"flex",flexDirection:"column",gap:10}}>
+            {/* Tipo */}
+            <div style={{background:"#0e1220",border:"1px solid rgba(255,255,255,0.06)",borderRadius:12,padding:"16px"}}>
+              <div style={{fontSize:10,fontWeight:700,color:"rgba(255,255,255,0.42)",textTransform:"uppercase",letterSpacing:"0.1em",marginBottom:10}}>Tipo de informe</div>
+              <div style={{display:"flex",gap:6}}>
+                {[["jugador","👤 Jugador"],["sesion","📋 Sesión"]].map(([v,l])=>(
+                  <button key={v} onClick={()=>{setModo(v);setPreview(false);}} style={{
+                    flex:1,padding:"9px",borderRadius:8,fontSize:11,fontWeight:700,cursor:"pointer",
+                    border:`1px solid ${modo===v?"#00e676":"rgba(255,255,255,0.06)"}`,
+                    background:modo===v?"rgba(0,230,118,0.12)":"transparent",
+                    color:modo===v?"#00e676":"rgba(255,255,255,0.42)"}}>
                     {l}
                   </button>
                 ))}
               </div>
             </div>
 
-            {/* Tipo de sesión */}
-            <div style={S.card()}>
-              <div style={{ ...S.sec, marginBottom:10 }}>Tipo de sesión</div>
-              <div style={{ display:"flex", flexWrap:"wrap", gap:6 }}>
-                {TIPOS_SESION.map(t => (
-                  <button key={t} onClick={() => setTipoSesion(t)} style={{
-                    padding:"5px 12px", borderRadius:8, fontSize:11, fontWeight:700,
-                    cursor:"pointer", border:`1px solid ${tipoSesion===t?C.blue+"50":C.border}`,
-                    background: tipoSesion===t ? `${C.blue}15` : "transparent",
-                    color: tipoSesion===t ? C.blue : C.muted }}>
-                    {t}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            {/* Selección jugadores */}
-            <div style={S.card()}>
-              <div style={{ ...S.sec, marginBottom:10 }}>
-                {tipoInforme === "individual" ? "Jugador" : `Jugadores (${jugMulti.length===0?"todos":jugMulti.length})`}
-              </div>
-              {tipoInforme === "individual" ? (
-                <div style={{ display:"flex", flexDirection:"column", gap:4, maxHeight:260, overflowY:"auto" }}>
-                  {playersWithACWR.map(p => (
-                    <div key={p.id} onClick={() => setJugSelec(p.id)} style={{
-                      display:"flex", alignItems:"center", gap:8, padding:"7px 10px",
-                      borderRadius:8, cursor:"pointer",
-                      background: jugSelec===p.id ? `${statusCfg[p.status].color}15` : "rgba(255,255,255,0.02)",
-                      border:`1px solid ${jugSelec===p.id ? statusCfg[p.status].color+"40" : C.border}` }}>
-                      <div style={{ width:6, height:6, borderRadius:"50%", background:statusCfg[p.status].color, flexShrink:0 }}/>
-                      <div style={{ flex:1 }}>
-                        <div style={{ fontSize:11, fontWeight:600 }}>{p.nombre}</div>
-                        <div style={{ fontSize:9, color:C.muted }}>{p.pos}</div>
-                      </div>
-                      <div style={{ fontSize:10, fontFamily:"monospace", color:acwrColor(p.acwr) }}>{p.acwr}</div>
+            {/* Selector jugador */}
+            {modo==="jugador" && (
+              <div style={{background:"#0e1220",border:"1px solid rgba(255,255,255,0.06)",borderRadius:12,padding:"16px"}}>
+                <div style={{fontSize:10,fontWeight:700,color:"rgba(255,255,255,0.42)",textTransform:"uppercase",letterSpacing:"0.1em",marginBottom:10}}>Jugador</div>
+                <div style={{display:"flex",flexDirection:"column",gap:4,maxHeight:300,overflowY:"auto"}}>
+                  {playersWithACWR.map(p=>(
+                    <div key={p.id} onClick={()=>{setJugSelec(p.id);setPreview(false);}} style={{
+                      display:"flex",alignItems:"center",gap:8,padding:"7px 10px",borderRadius:8,cursor:"pointer",
+                      background:jugSelec===p.id?`${statusCfg[p.status].color}12`:"rgba(255,255,255,0.02)",
+                      border:`1px solid ${jugSelec===p.id?statusCfg[p.status].color+"40":"rgba(255,255,255,0.04)"}`}}>
+                      <div style={{width:5,height:5,borderRadius:"50%",background:statusCfg[p.status].color,flexShrink:0}}/>
+                      <div style={{flex:1,fontSize:11,fontWeight:600,color:"#e8edf5"}}>{p.nombre}</div>
+                      <div style={{fontSize:9,color:"rgba(255,255,255,0.3)"}}>{p.pos}</div>
                     </div>
                   ))}
                 </div>
-              ) : (
-                <div>
-                  <div style={{ display:"flex", flexDirection:"column", gap:4, maxHeight:200, overflowY:"auto", marginBottom:8 }}>
-                    {playersWithACWR.map(p => (
-                      <div key={p.id} onClick={() => toggleJugMulti(p.id)} style={{
-                        display:"flex", alignItems:"center", gap:8, padding:"7px 10px",
-                        borderRadius:8, cursor:"pointer",
-                        background: jugMulti.includes(p.id) ? `${C.green}10` : "rgba(255,255,255,0.02)",
-                        border:`1px solid ${jugMulti.includes(p.id) ? C.green+"40" : C.border}` }}>
-                        <div style={{ width:14, height:14, borderRadius:4, border:`1.5px solid ${jugMulti.includes(p.id)?C.green:C.muted}`,
-                          background: jugMulti.includes(p.id) ? C.green : "transparent",
-                          display:"flex", alignItems:"center", justifyContent:"center", fontSize:9, color:"#000", flexShrink:0 }}>
-                          {jugMulti.includes(p.id) ? "✓" : ""}
-                        </div>
-                        <div style={{ flex:1, fontSize:11, fontWeight:600 }}>{p.nombre}</div>
-                        <div style={{ fontSize:9, color:C.muted }}>{p.pos}</div>
-                      </div>
-                    ))}
-                  </div>
-                  <button onClick={() => setJugMulti([])} style={{
-                    width:"100%", padding:"6px", borderRadius:8, fontSize:10, fontWeight:700,
-                    background:"transparent", border:`1px solid ${C.border}`, color:C.muted, cursor:"pointer" }}>
-                    Seleccionar todos
-                  </button>
-                </div>
-              )}
-            </div>
-
-            {/* Botón generar */}
-            <button onClick={generarPDF} disabled={generando} style={{
-              width:"100%", padding:"12px", borderRadius:12, fontSize:13, fontWeight:800,
-              background: generando ? `${C.green}40` : C.green,
-              color:"#06080f", border:"none", cursor:generando?"not-allowed":"pointer",
-              letterSpacing:"0.04em" }}>
-              {generando ? "⏳ Generando informe..." : "⊞ Generar Informe PDF"}
-            </button>
-          </div>
-
-          {/* Vista previa del informe */}
-          <div style={{ ...S.card(), minHeight:500 }}>
-            {!preview ? (
-              <div style={{ display:"flex", flexDirection:"column", alignItems:"center",
-                justifyContent:"center", height:"100%", minHeight:460, gap:12, color:C.muted }}>
-                <div style={{ fontSize:40 }}>⊞</div>
-                <div style={{ fontSize:14, fontWeight:600 }}>Vista previa del informe</div>
-                <div style={{ fontSize:11, textAlign:"center", maxWidth:260, lineHeight:1.6 }}>
-                  Selecciona el tipo de informe, sesión y jugadores, luego haz clic en "Generar"
-                </div>
               </div>
-            ) : (
-              <div>
-                {/* Informe header */}
-                <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start",
-                  marginBottom:20, paddingBottom:16, borderBottom:`1px solid ${C.border}` }}>
-                  <div>
-                    <div style={{ fontSize:9, fontWeight:700, letterSpacing:"0.12em", color:C.green, textTransform:"uppercase" }}>
-                      ⬡ PERFLOAD · Informe de Carga
-                    </div>
-                    <div style={{ fontSize:18, fontWeight:800, marginTop:4 }}>
-                      {tipoInforme === "individual" ? jugadorActual?.nombre : `Informe Grupal — ${jugadoresSelec.length} jugadores`}
-                    </div>
-                    <div style={{ fontSize:11, color:C.muted, marginTop:3 }}>
-                      Sesión: <span style={{ color:C.blue, fontWeight:700 }}>{tipoSesion}</span> ·
-                      {new Date().toLocaleDateString("es-CO", {weekday:"long",year:"numeric",month:"long",day:"numeric"})}
-                    </div>
-                  </div>
-                  <button onClick={() => {
-                    const content = document.getElementById("informe-preview");
-                    if (content) {
-                      const w = window.open("","_blank");
-                      w.document.write(`<html><head><title>PerfLoad Informe</title>
-                        <style>body{font-family:sans-serif;padding:24px;background:#fff;color:#111;}
-                        table{width:100%;border-collapse:collapse;margin:12px 0;}
-                        th{background:#f0f0f0;padding:8px;text-align:left;font-size:11px;}
-                        td{padding:8px;border-bottom:1px solid #eee;font-size:12px;}
-                        h1{font-size:20px;margin-bottom:4px;}h2{font-size:14px;color:#555;margin:16px 0 8px;}
-                        .badge{display:inline-block;padding:2px 8px;border-radius:4px;font-size:10px;font-weight:700;}
-                        </style></head><body>${content.innerHTML}</body></html>`);
-                      w.document.close();
-                      w.print();
-                    }
-                  }} style={{
-                    padding:"8px 16px", borderRadius:9, fontSize:11, fontWeight:700,
-                    background:`${C.green}18`, color:C.green, border:`1px solid ${C.green}30`,
-                    cursor:"pointer" }}>
-                    🖨 Imprimir / PDF
-                  </button>
-                </div>
+            )}
 
-                <div id="informe-preview">
-                  {tipoInforme === "individual" && jugadorActual ? (
-                    <div>
-                      {/* Individual report */}
-                      <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr 1fr", gap:10, marginBottom:16 }}>
-                        {[
-                          { label:"ACWR", val:jugadorActual.acwr, color:acwrColor(jugadorActual.acwr) },
-                          { label:"Estado", val:statusCfg[jugadorActual.status].label, color:statusCfg[jugadorActual.status].color },
-                          { label:"Posición", val:jugadorActual.pos, color:C.text },
-                        ].map((k,i) => (
-                          <div key={i} style={{ background:"rgba(255,255,255,0.03)", borderRadius:10,
-                            padding:"12px", border:`1px solid ${C.border}`, textAlign:"center" }}>
-                            <div style={{ fontSize:20, fontWeight:900, color:k.color, fontFamily:"monospace" }}>{k.val}</div>
-                            <div style={{ fontSize:9, color:C.muted, marginTop:3, textTransform:"uppercase", letterSpacing:"0.08em" }}>{k.label}</div>
-                          </div>
-                        ))}
-                      </div>
-
-                      <div style={{ ...S.sec, marginBottom:10 }}>Métricas GPS · Sesión {tipoSesion}</div>
-                      {[
-                        { label:"Distancia total", val:jugadorActual.cat?.distancia || Math.round((jugadorActual.loads.slice(-1)[0]||380)*28), prev: Math.round((jugadorActual.loads.slice(-2,-1)[0]||360)*28), color:C.green, unit:" m" },
-                        { label:"HSR (>18 km/h)", val:jugadorActual.cat?.hsr || 1240, prev:1180, color:C.blue, unit:" m" },
-                        { label:"Sprint (>24 km/h)", val:jugadorActual.cat?.sprint || 380, prev:420, color:C.purple, unit:" m" },
-                        { label:"Aceleraciones", val:jugadorActual.cat?.acels || 48, prev:44, color:C.yellow, unit:"" },
-                        { label:"Player Load", val:jugadorActual.loads.slice(-1)[0] || 380, prev:jugadorActual.loads.slice(-2,-1)[0]||360, color:C.orange, unit:" UA" },
-                      ].map((m,i) => <MetricRow key={i} {...m}/>)}
-
-                      <div style={{ ...S.sec, marginTop:16, marginBottom:10 }}>Tendencia carga — últimos 7 días</div>
-                      <div style={{ display:"flex", gap:6 }}>
-                        {jugadorActual.loads.slice(-7).map((v,i) => {
-                          const max = Math.max(...jugadorActual.loads.slice(-7));
-                          const pct = (v/max)*100;
-                          return (
-                            <div key={i} style={{ flex:1, textAlign:"center" }}>
-                              <div style={{ height:50, display:"flex", alignItems:"flex-end", justifyContent:"center" }}>
-                                <div style={{ width:"70%", height:`${pct}%`, minHeight:4,
-                                  background:acwrColor(jugadorActual.acwr), borderRadius:"3px 3px 0 0", opacity:0.8 }}/>
-                              </div>
-                              <div style={{ fontSize:8, color:C.muted, marginTop:3 }}>D{i+1}</div>
-                              <div style={{ fontSize:9, fontFamily:"monospace", color:C.text }}>{v}</div>
-                            </div>
-                          );
-                        })}
-                      </div>
+            {/* Selector sesión */}
+            {modo==="sesion" && (
+              <div style={{background:"#0e1220",border:"1px solid rgba(255,255,255,0.06)",borderRadius:12,padding:"16px"}}>
+                <div style={{fontSize:10,fontWeight:700,color:"rgba(255,255,255,0.42)",textTransform:"uppercase",letterSpacing:"0.1em",marginBottom:10}}>Sesión / Partido</div>
+                <div style={{display:"flex",flexDirection:"column",gap:4,maxHeight:300,overflowY:"auto"}}>
+                  {sesionesUnicas.map((s,i)=>(
+                    <div key={i} onClick={()=>{setSesionSelec(s.actividad);setPreview(false);}} style={{
+                      padding:"8px 10px",borderRadius:8,cursor:"pointer",
+                      background:sesionSelec===s.actividad?"rgba(0,230,118,0.08)":"rgba(255,255,255,0.02)",
+                      border:`1px solid ${sesionSelec===s.actividad?"rgba(0,230,118,0.3)":"rgba(255,255,255,0.04)"}`}}>
+                      <div style={{fontSize:11,fontWeight:600,color:"#e8edf5",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{s.actividad}</div>
+                      <div style={{fontSize:9,color:"rgba(255,255,255,0.3)",marginTop:2}}>{s.fecha}</div>
                     </div>
-                  ) : (
-                    <div>
-                      {/* Group report */}
-                      <div style={{ display:"grid", gridTemplateColumns:"repeat(3,1fr)", gap:10, marginBottom:16 }}>
-                        {[
-                          { label:"Jugadores", val:jugadoresSelec.length, color:C.text },
-                          { label:"ACWR Promedio", val:parseFloat((jugadoresSelec.reduce((a,p)=>a+p.acwr,0)/jugadoresSelec.length).toFixed(2)), color:acwrColor(jugadoresSelec.reduce((a,p)=>a+p.acwr,0)/jugadoresSelec.length) },
-                          { label:"En riesgo", val:jugadoresSelec.filter(p=>p.status==="risk").length, color:C.red },
-                        ].map((k,i) => (
-                          <div key={i} style={{ background:"rgba(255,255,255,0.03)", borderRadius:10,
-                            padding:"12px", border:`1px solid ${C.border}`, textAlign:"center" }}>
-                            <div style={{ fontSize:24, fontWeight:900, color:k.color, fontFamily:"monospace" }}>{k.val}</div>
-                            <div style={{ fontSize:9, color:C.muted, marginTop:3, textTransform:"uppercase", letterSpacing:"0.08em" }}>{k.label}</div>
-                          </div>
-                        ))}
-                      </div>
-
-                      <div style={{ ...S.sec, marginBottom:10 }}>Resumen plantilla · Sesión {tipoSesion}</div>
-                      <div style={{ overflowX:"auto" }}>
-                        <table style={{ width:"100%", borderCollapse:"collapse" }}>
-                          <thead>
-                            <tr>{["Jugador","Pos","ACWR","P.Load","Distancia","HSR","Estado"].map(h=>(
-                              <th key={h} style={S.th}>{h}</th>
-                            ))}</tr>
-                          </thead>
-                          <tbody>
-                            {jugadoresSelec.map(p => {
-                              const sc = statusCfg[p.status];
-                              return (
-                                <tr key={p.id}>
-                                  <td style={{ ...S.td, fontWeight:700 }}>{p.nombre}</td>
-                                  <td style={{ ...S.td, color:C.muted }}>{p.pos}</td>
-                                  <td style={{ ...S.td, fontFamily:"monospace", fontWeight:700, color:acwrColor(p.acwr) }}>{p.acwr}</td>
-                                  <td style={{ ...S.td, fontFamily:"monospace" }}>{p.loads.slice(-1)[0]||"—"}</td>
-                                  <td style={{ ...S.td, fontFamily:"monospace" }}>{p.cat?.distancia?.toLocaleString()||"—"}</td>
-                                  <td style={{ ...S.td, fontFamily:"monospace" }}>{p.cat?.hsr||"—"}</td>
-                                  <td style={S.td}><Tag label={sc.label} color={sc.color}/></td>
-                                </tr>
-                              );
-                            })}
-                          </tbody>
-                        </table>
-                      </div>
-                    </div>
-                  )}
+                  ))}
                 </div>
               </div>
             )}
+
+            {/* Botón generar */}
+            <button onClick={generarInforme} disabled={generando} style={{
+              padding:"12px",borderRadius:12,fontSize:13,fontWeight:800,cursor:"pointer",
+              background:generando?"rgba(0,230,118,0.3)":"#00e676",color:"#06080f",border:"none",
+              letterSpacing:"0.04em"}}>
+              {generando?"⏳ Generando...":"⊞ Generar Informe"}
+            </button>
+
+            {preview && (
+              <button onClick={imprimirPDF} style={{
+                padding:"10px",borderRadius:12,fontSize:12,fontWeight:700,cursor:"pointer",
+                background:"transparent",color:"#40c4ff",border:"1px solid rgba(64,196,255,0.3)"}}>
+                🖨 Imprimir / Guardar PDF
+              </button>
+            )}
+          </div>
+
+          {/* VISTA PREVIA */}
+          <div style={{background:"#f8fafc",borderRadius:14,minHeight:500,overflow:"auto",border:"1px solid rgba(255,255,255,0.06)"}}>
+            {!preview ? (
+              <div style={{display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",height:"100%",minHeight:460,gap:12,color:"rgba(255,255,255,0.3)"}}>
+                <div style={{fontSize:48}}>⊞</div>
+                <div style={{fontSize:14,fontWeight:600,color:"rgba(255,255,255,0.5)"}}>Vista previa del informe</div>
+                <div style={{fontSize:11,color:"rgba(255,255,255,0.25)",textAlign:"center",maxWidth:240}}>
+                  {modo==="jugador"?"Selecciona un jugador y genera el informe":"Selecciona una sesión y genera el informe"}
+                </div>
+              </div>
+            ) : modo==="jugador" ? <InformeJugador/> : <InformeSesion/>}
           </div>
         </div>
       </div>
     );
   };
+
 
   return (
     <div style={S.app}>
