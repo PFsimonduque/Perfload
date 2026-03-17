@@ -1261,293 +1261,199 @@ export default function PerfLoad() {
 
   // ── INFORMES PDF ──
   const PageInformes = () => {
-    const [modo, setModo] = useState("sesion"); // "jugador" | "sesion"
+    const [modo, setModo] = useState("partido"); // "jugador" | "partido"
     const [jugSelec, setJugSelec] = useState(playersWithACWR[0]?.id || null);
+    const [diasSelec, setDiasSelec] = useState([]);
     const [sesionSelec, setSesionSelec] = useState(null);
     const [generando, setGenerando] = useState(false);
     const [preview, setPreview] = useState(false);
+    const [gpsData, setGpsData] = useState([]);
+    const [loadingGps, setLoadingGps] = useState(false);
+
+    // Fetch all GPS rows from sheet
+    React.useEffect(() => {
+      setLoadingGps(true);
+      fetch(`${GPS_SCRIPT_URL}?tipo=gps`)
+        .then(r => r.json())
+        .then(rows => { setGpsData(rows); setLoadingGps(false); })
+        .catch(() => setLoadingGps(false));
+    }, []);
 
     const jugadorActual = playersWithACWR.find(p => p.id === jugSelec);
 
-    // Obtener sesiones únicas del sheet GPS (usando cat.actividad)
-    const sesionesUnicas = [...new Map(
-      playersWithACWR
-        .filter(p => p.cat?.actividad)
-        .map(p => [p.cat.actividad, { actividad: p.cat.actividad, fecha: p.cat.fecha }])
-    ).values()].sort((a,b) => (b.fecha||'').localeCompare(a.fecha||''));
+    // Sesiones unicas de partidos (Fecha X)
+    const partidos = [...new Map(
+      gpsData.filter(r => r.Actividad && r.Actividad.toLowerCase().includes('fecha'))
+        .map(r => [r.Actividad, {actividad: r.Actividad, fecha: r.Fecha}])
+    ).values()].sort((a,b) => a.fecha.localeCompare(b.fecha));
 
-    // Jugadores de la sesion seleccionada
-    const jugadoresSesion = sesionSelec
-      ? playersWithACWR.filter(p => p.cat?.actividad === sesionSelec)
-      : playersWithACWR.filter(p => p.cat?.actividad);
+    // Dias disponibles para jugador seleccionado
+    const diasJugador = jugadorActual ? [...new Set(
+      gpsData.filter(r => (r.Jugador||'').toLowerCase().includes(jugadorActual.nombre.split(' ')[0].toLowerCase()))
+        .map(r => r.Fecha)
+    )].sort() : [];
 
-    const generarInforme = () => {
-      setGenerando(true);
-      setTimeout(() => { setGenerando(false); setPreview(true); }, 1200);
+    const toggleDia = (fecha) => {
+      setDiasSelec(prev => prev.includes(fecha) ? prev.filter(d=>d!==fecha) : [...prev, fecha]);
+      setPreview(false);
+    };
+
+    const pf = v => { const n = parseFloat(String(v||0)); return isNaN(n) ? 0 : n; };
+
+    // Pos colors
+    const posColor = { POR:'#f59e0b', LAT:'#3b82f6', DC:'#ef4444', MCD:'#8b5cf6',
+      MCI:'#06b6d4', MCO:'#10b981', EXT:'#f97316', DEL:'#ec4899',
+      'GOAL KEEPER':'#f59e0b', LATERAL:'#3b82f6', 'MEDIO CENTRO':'#8b5cf6',
+      INTERIOR:'#06b6d4', EXTREMO:'#f97316', DELANTERO:'#ec4899',
+      'DEFENSA CENTRAL':'#ef4444', 'DEFENSA CEN':'#ef4444' };
+    const getPC = pos => posColor[(pos||'').toUpperCase()] || posColor[pos] || '#64748b';
+
+    // Heat color for values
+    const heatColor = (val, max, invert=false) => {
+      const pct = max > 0 ? Math.min(1, val/max) : 0;
+      const v = invert ? 1-pct : pct;
+      if (v >= 0.8) return {bg:'#dcfce7',color:'#166534'};
+      if (v >= 0.6) return {bg:'#d1fae5',color:'#065f46'};
+      if (v >= 0.4) return {bg:'#fef9c3',color:'#713f12'};
+      if (v >= 0.2) return {bg:'#ffedd5',color:'#9a3412'};
+      return {bg:'#fee2e2',color:'#991b1b'};
     };
 
     const imprimirPDF = () => {
-      const el = document.getElementById("informe-render");
+      const el = document.getElementById('informe-render');
       if (!el) return;
-      const w = window.open("","_blank");
+      const w = window.open('','_blank');
       w.document.write(`<!DOCTYPE html><html><head><title>PerfLoad Informe</title>
         <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@400;600;700;800;900&family=Barlow:wght@400;500;600&display=swap" rel="stylesheet">
         <style>
           *{box-sizing:border-box;margin:0;padding:0;}
           body{font-family:'Barlow',sans-serif;background:#fff;color:#111;-webkit-print-color-adjust:exact;print-color-adjust:exact;}
-          @media print{body{background:#fff;}}
+          @page{size:A4 landscape;margin:10mm;}
+          @media print{.no-print{display:none!important;}}
         </style></head><body>${el.innerHTML}</body></html>`);
       w.document.close();
-      setTimeout(() => w.print(), 500);
+      setTimeout(()=>w.print(),600);
     };
 
-    // Colores por posición
-    const posColor = { POR:"#f59e0b", LAT:"#3b82f6", DC:"#ef4444", MCD:"#8b5cf6", MCI:"#06b6d4", MCO:"#10b981", EXT:"#f97316", DEL:"#ec4899" };
-    const getPosColor = pos => posColor[pos] || "#64748b";
+    // ── INFORME PARTIDO ──
+    const InformePartido = () => {
+      if (!sesionSelec) return null;
+      const filas = gpsData.filter(r => r.Actividad === sesionSelec);
+      if (!filas.length) return <div style={{padding:40,textAlign:'center',color:'#94a3b8'}}>Sin datos para esta sesión</div>;
 
-    // Métricas para ranking
-    const metricasClave = [
-      { key:"distancia", label:"Distancia", unit:"m", color:"#00e676" },
-      { key:"playerLoad", label:"Player Load", unit:"UA", color:"#ffab40" },
-      { key:"velMax", label:"Vel. Máx", unit:"km/h", color:"#40c4ff" },
-      { key:"hsr", label:"HSR", unit:"m", color:"#ce93d8" },
-      { key:"sprintsN", label:"Sprints", unit:"", color:"#ff6b6b" },
-    ];
+      // Sort by distance desc, exclude GK for team averages
+      const sorted = [...filas].sort((a,b) => pf(b.Distancia)-pf(a.Distancia));
+      const campo = filas.filter(r => !(r.Posicion||'').toLowerCase().includes('goal') && !(r.Posicion||'').toLowerCase().includes('por'));
+      const n = 10; // divide by 10 field players
 
-    const BarHoriz = ({ val, max, color, label, unit }) => {
-      const pct = max > 0 ? Math.min(100, (val/max)*100) : 0;
-      return (
-        <div style={{marginBottom:6}}>
-          <div style={{display:"flex",justifyContent:"space-between",fontSize:10,marginBottom:3,color:"#555"}}>
-            <span>{label}</span>
-            <span style={{fontWeight:700,color:"#111"}}>{val?.toLocaleString?.() ?? val}{unit ? ` ${unit}` : ""}</span>
-          </div>
-          <div style={{height:6,background:"#e5e7eb",borderRadius:3,overflow:"hidden"}}>
-            <div style={{height:"100%",width:`${pct}%`,background:color,borderRadius:3,transition:"width 0.8s"}}/>
-          </div>
-        </div>
-      );
-    };
+      const avg = key => campo.length ? Math.round(campo.reduce((s,r)=>s+pf(r[key]),0)/n) : 0;
+      const avgF = (key,dec=1) => campo.length ? (campo.reduce((s,r)=>s+pf(r[key]),0)/n).toFixed(dec) : '0';
 
-    const StatBox = ({ label, val, unit="", color="#111", sub="" }) => (
-      <div style={{background:"#f8fafc",border:"1px solid #e2e8f0",borderRadius:8,padding:"10px 14px",textAlign:"center"}}>
-        <div style={{fontSize:22,fontWeight:900,color,fontFamily:"'Barlow Condensed',sans-serif",lineHeight:1}}>{val}</div>
-        {unit && <div style={{fontSize:10,color:"#94a3b8",fontWeight:600}}>{unit}</div>}
-        <div style={{fontSize:10,color:"#64748b",marginTop:3,fontWeight:600,textTransform:"uppercase",letterSpacing:"0.05em"}}>{label}</div>
-        {sub && <div style={{fontSize:9,color:"#94a3b8",marginTop:2}}>{sub}</div>}
-      </div>
-    );
+      // Maxes for heatmap
+      const maxes = {};
+      ['Distancia','PlayerLoad','VelMax','HSR','Sprint','NSprintsH','AcelsH','DecelsH','HMLD','Duracion'].forEach(k => {
+        maxes[k] = Math.max(...filas.map(r => pf(r[k])));
+      });
 
-    // ── INFORME JUGADOR ──
-    const InformeJugador = () => {
-      if (!jugadorActual) return null;
-      const p = jugadorActual;
-      const w = p.wellness;
-      const cat = p.cat;
-      const sc = statusCfg[p.status];
-      const loads7 = p.loads.slice(-7);
-      const maxLoad = Math.max(...loads7);
+      // Group by position
+      const byPos = {};
+      filas.forEach(r => {
+        const pos = (r.Posicion||'Otro').toUpperCase();
+        if (!byPos[pos]) byPos[pos] = [];
+        byPos[pos].push(r);
+      });
+
+      const fecha = filas[0]?.Fecha || '';
 
       return (
-        <div id="informe-render" style={{background:"#fff",maxWidth:900,margin:"0 auto",fontFamily:"'Barlow',sans-serif"}}>
-          {/* HEADER */}
-          <div style={{background:"#06080f",color:"#fff",padding:"28px 32px",position:"relative",overflow:"hidden"}}>
-            <div style={{position:"absolute",top:0,right:0,width:300,height:"100%",background:`linear-gradient(135deg,transparent 40%,${sc.color}18)`,pointerEvents:"none"}}/>
-            <div style={{display:"flex",alignItems:"center",gap:20,position:"relative"}}>
-              <div style={{width:64,height:64,borderRadius:12,background:`${sc.color}20`,border:`2px solid ${sc.color}`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:24,fontWeight:900,color:sc.color,fontFamily:"'Barlow Condensed',sans-serif"}}>
-                {p.pos}
-              </div>
-              <div style={{flex:1}}>
-                <div style={{fontSize:28,fontWeight:900,fontFamily:"'Barlow Condensed',sans-serif",letterSpacing:"-0.02em",lineHeight:1}}>{p.nombre.toUpperCase()}</div>
-                <div style={{fontSize:12,color:"rgba(255,255,255,0.5)",marginTop:4}}>{p.pos} · {p.edad} años · {p.peso} kg · {p.talla} cm</div>
-                <div style={{marginTop:6,display:"flex",gap:8,alignItems:"center"}}>
-                  <span style={{padding:"3px 10px",borderRadius:4,fontSize:11,fontWeight:700,background:`${sc.color}25`,color:sc.color,border:`1px solid ${sc.color}40`}}>{sc.label.toUpperCase()}</span>
-                  <span style={{fontSize:11,color:"rgba(255,255,255,0.4)"}}>{cat?.fecha} · {cat?.actividad}</span>
-                </div>
-              </div>
-              <div style={{textAlign:"right"}}>
-                <div style={{fontSize:48,fontWeight:900,color:acwrColor(p.acwr),fontFamily:"'Barlow Condensed',sans-serif",lineHeight:1}}>{p.acwr}</div>
-                <div style={{fontSize:10,color:"rgba(255,255,255,0.4)",textTransform:"uppercase",letterSpacing:"0.1em"}}>ACWR</div>
-                <div style={{fontSize:10,color:acwrColor(p.acwr),marginTop:2}}>{acwrLabel(p.acwr)}</div>
-              </div>
-            </div>
-            <div style={{marginTop:16,display:"flex",gap:6,alignItems:"center"}}>
-              <div style={{fontSize:9,color:"rgba(255,255,255,0.3)",textTransform:"uppercase",letterSpacing:"0.1em",marginRight:4}}>⬡ PERFLOAD</div>
-              <div style={{flex:1,height:1,background:"rgba(255,255,255,0.08)"}}/>
-              <div style={{fontSize:9,color:"rgba(255,255,255,0.3)"}}>ORSOMARSO SC · BCA 2026-1</div>
-            </div>
-          </div>
+        <div id="informe-render" style={{background:'#fff',fontFamily:"'Barlow',sans-serif",fontSize:11}}>
 
-          <div style={{padding:"24px 32px"}}>
-            {/* KPIs PRINCIPALES */}
-            <div style={{marginBottom:20}}>
-              <div style={{fontSize:11,fontWeight:700,color:"#94a3b8",textTransform:"uppercase",letterSpacing:"0.1em",marginBottom:12}}>Métricas de la sesión</div>
-              <div style={{display:"grid",gridTemplateColumns:"repeat(5,1fr)",gap:8}}>
-                {[
-                  { label:"Distancia", val:Math.round(cat?.distancia||0).toLocaleString(), unit:"m", color:"#00e676" },
-                  { label:"Player Load", val:Math.round(cat?.playerLoad||0), unit:"UA", color:"#ffab40" },
-                  { label:"Vel. Máx", val:(cat?.velMax||0).toFixed(1), unit:"km/h", color:"#40c4ff" },
-                  { label:"HSR", val:Math.round(cat?.hsr||0), unit:"m", color:"#ce93d8" },
-                  { label:"m/min", val:Math.round(cat?.mpm||0), unit:"m/min", color:"#f97316" },
-                ].map((k,i) => <StatBox key={i} {...k}/>)}
-              </div>
-            </div>
-
-            <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:20,marginBottom:20}}>
-              {/* BARRAS GPS */}
+          {/* ── PÁGINA 1: HEADER + PROMEDIOS + TABLA ── */}
+          <div style={{pageBreakAfter:'always'}}>
+            {/* Header */}
+            <div style={{background:'#06080f',color:'#fff',padding:'16px 24px',display:'flex',justifyContent:'space-between',alignItems:'center'}}>
               <div>
-                <div style={{fontSize:11,fontWeight:700,color:"#94a3b8",textTransform:"uppercase",letterSpacing:"0.1em",marginBottom:12}}>Análisis de rendimiento</div>
+                <div style={{fontSize:9,color:'rgba(255,255,255,0.4)',letterSpacing:'0.15em',textTransform:'uppercase'}}>⬡ PERFLOAD · ORSOMARSO SC · BCA 2026-1</div>
+                <div style={{fontSize:22,fontWeight:900,fontFamily:"'Barlow Condensed',sans-serif",marginTop:2}}>{sesionSelec.toUpperCase()}</div>
+                <div style={{fontSize:11,color:'rgba(255,255,255,0.4)',marginTop:2}}>{fecha} · {filas.length} jugadores</div>
+              </div>
+              <div style={{display:'flex',gap:24}}>
                 {[
-                  { label:"Distancia total", val:Math.round(cat?.distancia||0), max:12000, color:"#00e676", unit:"m" },
-                  { label:"Player Load", val:Math.round(cat?.playerLoad||0), max:1200, color:"#ffab40", unit:"UA" },
-                  { label:"HSR (>19.8 km/h)", val:Math.round(cat?.hsr||0), max:800, color:"#ce93d8", unit:"m" },
-                  { label:"Sprints (>25 km/h)", val:cat?.sprintsN||0, max:20, color:"#ef4444", unit:"" },
-                  { label:"Acels Med+Alto", val:(cat?.acelsM||0)+(cat?.acelsH||0), max:50, color:"#fbbf24", unit:"" },
-                  { label:"Decels Med+Alto", val:(cat?.decelsM||0)+(cat?.decelsH||0), max:50, color:"#60a5fa", unit:"" },
-                ].map((m,i) => <BarHoriz key={i} {...m}/>)}
-              </div>
-
-              {/* WELLNESS + TENDENCIA */}
-              <div>
-                <div style={{fontSize:11,fontWeight:700,color:"#94a3b8",textTransform:"uppercase",letterSpacing:"0.1em",marginBottom:12}}>Wellness del día</div>
-                {w ? (
-                  <div style={{background:"#f8fafc",borderRadius:8,border:"1px solid #e2e8f0",padding:"14px"}}>
-                    <div style={{display:"grid",gridTemplateColumns:"repeat(5,1fr)",gap:6,marginBottom:12}}>
-                      {[
-                        {label:"Sueño",val:w.sueno,inv:false},{label:"Fatiga",val:w.fatiga,inv:true},
-                        {label:"Dolor",val:w.dolor,inv:true},{label:"Humor",val:w.humor,inv:false},{label:"Estrés",val:w.estres,inv:true}
-                      ].map((d,i) => {
-                        const v = d.inv ? 10-d.val : d.val;
-                        const c = v>=7?"#10b981":v>=5?"#f59e0b":"#ef4444";
-                        return (
-                          <div key={i} style={{textAlign:"center"}}>
-                            <div style={{width:36,height:36,borderRadius:"50%",background:`${c}15`,border:`2px solid ${c}`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:14,fontWeight:800,color:c,margin:"0 auto 4px"}}>{d.val}</div>
-                            <div style={{fontSize:8,color:"#94a3b8",textTransform:"uppercase"}}>{d.label}</div>
-                          </div>
-                        );
-                      })}
-                    </div>
-                    <div style={{display:"flex",justifyContent:"space-between",padding:"10px 12px",background:"#fff",borderRadius:6,border:"1px solid #e2e8f0"}}>
-                      <span style={{fontSize:11,color:"#64748b",fontWeight:600}}>RPE sesión</span>
-                      <span style={{fontSize:20,fontWeight:900,color:"#f97316",fontFamily:"'Barlow Condensed',sans-serif"}}>{w.rpe}/10</span>
-                    </div>
-                  </div>
-                ) : <div style={{padding:"20px",textAlign:"center",color:"#94a3b8",fontSize:12}}>Sin datos de wellness</div>}
-
-                {/* Tendencia 7 días */}
-                <div style={{marginTop:14}}>
-                  <div style={{fontSize:11,fontWeight:700,color:"#94a3b8",textTransform:"uppercase",letterSpacing:"0.1em",marginBottom:10}}>Carga — últimos 7 días</div>
-                  <div style={{display:"flex",gap:4,alignItems:"flex-end",height:60}}>
-                    {loads7.map((v,i) => {
-                      const pct = maxLoad>0?(v/maxLoad)*100:0;
-                      const isLast = i===loads7.length-1;
-                      const col = acwrColor(p.acwr);
-                      return (
-                        <div key={i} style={{flex:1,display:"flex",flexDirection:"column",alignItems:"center",gap:3}}>
-                          <div style={{fontSize:8,color:"#94a3b8"}}>{v}</div>
-                          <div style={{width:"100%",height:`${pct}%`,minHeight:4,background:isLast?col:`${col}50`,borderRadius:"2px 2px 0 0"}}/>
-                          <div style={{fontSize:8,color:"#94a3b8"}}>D{i+1}</div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                  <div style={{display:"flex",justifyContent:"space-between",marginTop:8,padding:"8px 10px",background:"#f8fafc",borderRadius:6,border:"1px solid #e2e8f0"}}>
-                    <span style={{fontSize:10,color:"#64748b"}}>Carga aguda (7d)</span>
-                    <span style={{fontSize:13,fontWeight:700,color:"#111",fontFamily:"'Barlow Condensed',sans-serif"}}>{Math.round(loads7.reduce((a,b)=>a+b,0)/7)} UA/día</span>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {/* FOOTER */}
-            <div style={{borderTop:"1px solid #e2e8f0",paddingTop:12,display:"flex",justifyContent:"space-between",alignItems:"center"}}>
-              <div style={{fontSize:9,color:"#94a3b8"}}>⬡ PERFLOAD · Orsomarso SC · BCA 2026-1</div>
-              <div style={{fontSize:9,color:"#94a3b8"}}>{new Date().toLocaleDateString("es-CO",{weekday:"long",year:"numeric",month:"long",day:"numeric"})}</div>
-            </div>
-          </div>
-        </div>
-      );
-    };
-
-    // ── INFORME SESIÓN ──
-    const InformeSesion = () => {
-      const jugadores = jugadoresSesion.sort((a,b) => (b.cat?.distancia||0)-(a.cat?.distancia||0));
-      if (!jugadores.length) return <div style={{textAlign:"center",padding:40,color:"#94a3b8"}}>Selecciona una sesión</div>;
-      const sesion = jugadores[0]?.cat;
-      const avgDist = Math.round(jugadores.reduce((s,p)=>s+(p.cat?.distancia||0),0)/jugadores.length);
-      const avgLoad = Math.round(jugadores.reduce((s,p)=>s+(p.cat?.playerLoad||0),0)/jugadores.length);
-      const avgVel = (jugadores.reduce((s,p)=>s+(p.cat?.velMax||0),0)/jugadores.length).toFixed(1);
-      const maxDist = Math.max(...jugadores.map(p=>p.cat?.distancia||0));
-
-      return (
-        <div id="informe-render" style={{background:"#fff",maxWidth:960,margin:"0 auto",fontFamily:"'Barlow',sans-serif"}}>
-          {/* HEADER */}
-          <div style={{background:"#06080f",color:"#fff",padding:"24px 32px"}}>
-            <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start"}}>
-              <div>
-                <div style={{fontSize:10,color:"rgba(255,255,255,0.3)",textTransform:"uppercase",letterSpacing:"0.15em",marginBottom:6}}>⬡ PERFLOAD · Orsomarso SC · BCA 2026-1</div>
-                <div style={{fontSize:26,fontWeight:900,fontFamily:"'Barlow Condensed',sans-serif",letterSpacing:"-0.01em"}}>{sesion?.actividad?.toUpperCase() || "INFORME DE SESIÓN"}</div>
-                <div style={{fontSize:12,color:"rgba(255,255,255,0.4)",marginTop:4}}>{sesion?.fecha} · {jugadores.length} jugadores</div>
-              </div>
-              <div style={{display:"flex",gap:16}}>
-                {[
-                  {label:"Jugadores",val:jugadores.length,color:"#fff"},
-                  {label:"Dist. Promedio",val:`${avgDist.toLocaleString()}m`,color:"#00e676"},
-                  {label:"P.Load Prom",val:`${avgLoad} UA`,color:"#ffab40"},
-                  {label:"Vel. Máx Prom",val:`${avgVel} km/h`,color:"#40c4ff"},
+                  {l:'DISTANCIA PROM',v:`${avg('Distancia').toLocaleString()} m`,c:'#00e676'},
+                  {l:'PLAYER LOAD PROM',v:`${avg('PlayerLoad')} UA`,c:'#ffab40'},
+                  {l:'VEL MÁX PROM',v:`${avgF('VelMax')} km/h`,c:'#40c4ff'},
+                  {l:'HSR PROM',v:`${avg('HSR')} m`,c:'#ce93d8'},
+                  {l:'SPRINT PROM',v:`${avg('Sprint')} m`,c:'#ef4444'},
                 ].map((k,i) => (
-                  <div key={i} style={{textAlign:"center",minWidth:80}}>
-                    <div style={{fontSize:20,fontWeight:900,color:k.color,fontFamily:"'Barlow Condensed',sans-serif",lineHeight:1}}>{k.val}</div>
-                    <div style={{fontSize:8,color:"rgba(255,255,255,0.3)",textTransform:"uppercase",marginTop:3}}>{k.label}</div>
+                  <div key={i} style={{textAlign:'center'}}>
+                    <div style={{fontSize:18,fontWeight:900,color:k.c,fontFamily:"'Barlow Condensed',sans-serif",lineHeight:1}}>{k.v}</div>
+                    <div style={{fontSize:8,color:'rgba(255,255,255,0.35)',marginTop:2,textTransform:'uppercase',letterSpacing:'0.06em'}}>{k.l}</div>
                   </div>
                 ))}
               </div>
             </div>
-          </div>
 
-          <div style={{padding:"20px 32px"}}>
-            {/* TABLA PRINCIPAL */}
-            <div style={{fontSize:11,fontWeight:700,color:"#94a3b8",textTransform:"uppercase",letterSpacing:"0.1em",marginBottom:12}}>Resumen individual</div>
-            <div style={{overflowX:"auto",marginBottom:20}}>
-              <table style={{width:"100%",borderCollapse:"collapse",fontSize:11}}>
+            {/* Promedios generales */}
+            <div style={{background:'#f8fafc',borderBottom:'2px solid #e2e8f0',padding:'12px 24px'}}>
+              <div style={{fontSize:10,fontWeight:700,color:'#64748b',textTransform:'uppercase',letterSpacing:'0.1em',marginBottom:8}}>PROMEDIOS GENERALES DEL EQUIPO <span style={{color:'#94a3b8',fontWeight:400}}>(base 10 jugadores de campo)</span></div>
+              <div style={{display:'grid',gridTemplateColumns:'repeat(9,1fr)',gap:8}}>
+                {[
+                  {l:'Tiempo (min)',v:avgF('Duracion',0)},{l:'Distancia (m)',v:avg('Distancia').toLocaleString()},
+                  {l:'m/min',v:avgF('MPM',0)},{l:'HSR >19.8 (m)',v:avg('HSR').toLocaleString()},
+                  {l:'Sprint >25 (m)',v:avg('Sprint').toLocaleString()},{l:'# Sprints',v:avgF('NSprintsH',0)},
+                  {l:'Acels >3',v:avgF('AcelsH',0)},{l:'Decels >3',v:avgF('DecelsH',0)},
+                  {l:'HMLD (m)',v:avg('HMLD').toLocaleString()},
+                ].map((k,i) => (
+                  <div key={i} style={{background:'#fff',border:'1px solid #e2e8f0',borderRadius:6,padding:'8px 10px',textAlign:'center'}}>
+                    <div style={{fontSize:16,fontWeight:900,fontFamily:"'Barlow Condensed',sans-serif",color:'#111'}}>{k.v}</div>
+                    <div style={{fontSize:8,color:'#94a3b8',textTransform:'uppercase',letterSpacing:'0.05em',marginTop:2}}>{k.l}</div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Tabla individual con heatmap */}
+            <div style={{padding:'12px 24px'}}>
+              <div style={{fontSize:10,fontWeight:700,color:'#64748b',textTransform:'uppercase',letterSpacing:'0.1em',marginBottom:8}}>CUADRO RESUMEN INDIVIDUAL</div>
+              <table style={{width:'100%',borderCollapse:'collapse',fontSize:10}}>
                 <thead>
-                  <tr style={{background:"#06080f",color:"#fff"}}>
-                    {["Jugador","Pos","Dist (m)","P.Load","Vel Máx","m/min","HSR (m)","Sprints","Acels","Decels","Estado"].map(h=>(
-                      <th key={h} style={{padding:"8px 10px",textAlign:"left",fontSize:9,fontWeight:700,letterSpacing:"0.08em",textTransform:"uppercase",whiteSpace:"nowrap"}}>{h}</th>
+                  <tr style={{background:'#06080f',color:'#fff'}}>
+                    {['Jugador','Pos','Min','Dist (m)','m/min','HSR (m)','Sprint (m)','# Sprint','% Vmax','Vmax','Acels >3','Decels >3','HMLD','Estado'].map(h=>(
+                      <th key={h} style={{padding:'6px 8px',textAlign:'left',fontSize:8,fontWeight:700,letterSpacing:'0.06em',textTransform:'uppercase',whiteSpace:'nowrap'}}>{h}</th>
                     ))}
                   </tr>
                 </thead>
                 <tbody>
-                  {jugadores.map((p,i) => {
-                    const c = p.cat;
-                    const sc = statusCfg[p.status];
-                    const pc = getPosColor(p.pos);
+                  {sorted.map((r,i) => {
+                    const p = playersWithACWR.find(pl => pl.nombre.toLowerCase().includes((r.Jugador||'').toLowerCase().split(' ')[0].toLowerCase()));
+                    const sc = p ? statusCfg[p.status] : {label:'—',color:'#94a3b8'};
+                    const pc = getPC(r.Posicion);
                     return (
-                      <tr key={p.id} style={{background:i%2===0?"#f8fafc":"#fff",borderBottom:"1px solid #e2e8f0"}}>
-                        <td style={{padding:"8px 10px",fontWeight:700}}>
-                          <div style={{display:"flex",alignItems:"center",gap:6}}>
-                            <div style={{width:3,height:20,background:pc,borderRadius:2}}/>
-                            {p.nombre}
+                      <tr key={i} style={{background:i%2===0?'#f8fafc':'#fff',borderBottom:'1px solid #e2e8f0'}}>
+                        <td style={{padding:'5px 8px',fontWeight:700,whiteSpace:'nowrap'}}>
+                          <div style={{display:'flex',alignItems:'center',gap:5}}>
+                            <div style={{width:3,height:16,background:pc,borderRadius:2,flexShrink:0}}/>
+                            {r.Jugador}
                           </div>
                         </td>
-                        <td style={{padding:"8px 10px"}}>
-                          <span style={{padding:"2px 6px",borderRadius:3,fontSize:9,fontWeight:700,background:`${pc}15`,color:pc}}>{p.pos}</span>
+                        <td style={{padding:'5px 8px'}}>
+                          <span style={{padding:'1px 5px',borderRadius:3,fontSize:8,fontWeight:700,background:`${pc}20`,color:pc}}>{r.Posicion}</span>
                         </td>
-                        <td style={{padding:"8px 10px",fontFamily:"monospace",fontWeight:700,color:"#00b050"}}>
-                          <div>{Math.round(c?.distancia||0).toLocaleString()}</div>
-                          <div style={{height:3,background:"#e5e7eb",borderRadius:2,marginTop:2,width:60}}>
-                            <div style={{height:"100%",width:`${maxDist>0?((c?.distancia||0)/maxDist)*100:0}%`,background:"#00b050",borderRadius:2}}/>
-                          </div>
-                        </td>
-                        <td style={{padding:"8px 10px",fontFamily:"monospace",color:"#f97316"}}>{Math.round(c?.playerLoad||0)}</td>
-                        <td style={{padding:"8px 10px",fontFamily:"monospace",color:"#3b82f6"}}>{(c?.velMax||0).toFixed(1)}</td>
-                        <td style={{padding:"8px 10px",fontFamily:"monospace"}}>{Math.round(c?.mpm||0)}</td>
-                        <td style={{padding:"8px 10px",fontFamily:"monospace",color:"#8b5cf6"}}>{Math.round(c?.hsr||0)}</td>
-                        <td style={{padding:"8px 10px",fontFamily:"monospace",color:"#ef4444",fontWeight:700}}>{c?.sprintsN||0}</td>
-                        <td style={{padding:"8px 10px",fontFamily:"monospace"}}>{(c?.acelsM||0)+(c?.acelsH||0)}</td>
-                        <td style={{padding:"8px 10px",fontFamily:"monospace"}}>{(c?.decelsM||0)+(c?.decelsH||0)}</td>
-                        <td style={{padding:"8px 10px"}}>
-                          <span style={{padding:"2px 8px",borderRadius:3,fontSize:9,fontWeight:700,background:`${sc.color}15`,color:sc.color}}>{sc.label}</span>
+                        {[
+                          {k:'Duracion',dec:0},{k:'Distancia',dec:0},{k:'MPM',dec:0},
+                          {k:'HSR',dec:0},{k:'Sprint',dec:0},{k:'NSprintsH',dec:0},
+                          {k:'PctVelMax',dec:1},{k:'VelMax',dec:1},{k:'AcelsH',dec:0},{k:'DecelsH',dec:0},{k:'HMLD',dec:0}
+                        ].map(({k,dec},j) => {
+                          const val = pf(r[k]);
+                          const hc = heatColor(val, maxes[k]||1, k==='Duracion');
+                          return (
+                            <td key={j} style={{padding:'5px 8px',fontFamily:'monospace',fontWeight:600,background:hc.bg,color:hc.color,textAlign:'right'}}>
+                              {dec===0?Math.round(val).toLocaleString():val.toFixed(dec)}
+                            </td>
+                          );
+                        })}
+                        <td style={{padding:'5px 8px'}}>
+                          <span style={{padding:'2px 6px',borderRadius:3,fontSize:8,fontWeight:700,background:`${sc.color}18`,color:sc.color,whiteSpace:'nowrap'}}>{sc.label}</span>
                         </td>
                       </tr>
                     );
@@ -1555,128 +1461,401 @@ export default function PerfLoad() {
                 </tbody>
               </table>
             </div>
+          </div>
 
-            {/* RANKINGS */}
-            <div style={{fontSize:11,fontWeight:700,color:"#94a3b8",textTransform:"uppercase",letterSpacing:"0.1em",marginBottom:12}}>Rankings de la sesión</div>
-            <div style={{display:"grid",gridTemplateColumns:"repeat(5,1fr)",gap:10,marginBottom:20}}>
-              {metricasClave.map(met => {
-                const sorted = [...jugadores].sort((a,b)=>(b.cat?.[met.key]||0)-(a.cat?.[met.key]||0)).slice(0,3);
+          {/* ── PÁGINA 2: GRÁFICOS DE BARRAS POR POSICIÓN ── */}
+          <div style={{pageBreakAfter:'always',padding:'16px 24px'}}>
+            <div style={{background:'#06080f',color:'#fff',padding:'10px 16px',borderRadius:8,marginBottom:16,display:'flex',justifyContent:'space-between',alignItems:'center'}}>
+              <div style={{fontSize:16,fontWeight:900,fontFamily:"'Barlow Condensed',sans-serif"}}>{sesionSelec.toUpperCase()} · ANÁLISIS POR POSICIÓN</div>
+              <div style={{fontSize:9,color:'rgba(255,255,255,0.4)'}}>{fecha}</div>
+            </div>
+            <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:16}}>
+              {[
+                {key:'Distancia',label:'DISTANCIA TOTAL (m)',color:'#00e676'},
+                {key:'HSR',label:'DISTANCIA HSR >19.8 km/h (m)',color:'#ce93d8'},
+                {key:'Sprint',label:'DISTANCIA SPRINT >25 km/h (m)',color:'#ef4444'},
+                {key:'HMLD',label:'HMLD (m)',color:'#ffab40'},
+                {key:'VelMax',label:'VELOCIDAD MÁXIMA (km/h)',color:'#40c4ff'},
+                {key:'AcelsH',label:'ACELERACIONES >3 m/s²',color:'#fbbf24'},
+                {key:'DecelsH',label:'DESACELERACIONES >3 m/s²',color:'#60a5fa'},
+                {key:'NSprintsH',label:'# SPRINTS >25 km/h',color:'#f97316'},
+              ].map(({key,label,color}) => {
+                const chartData = [...sorted].sort((a,b)=>pf(b[key])-pf(a[key]));
+                const maxV = Math.max(...chartData.map(r=>pf(r[key]))) || 1;
                 return (
-                  <div key={met.key} style={{background:"#f8fafc",border:"1px solid #e2e8f0",borderRadius:8,overflow:"hidden"}}>
-                    <div style={{background:met.color,padding:"6px 10px"}}>
-                      <div style={{fontSize:9,fontWeight:700,color:"#06080f",textTransform:"uppercase",letterSpacing:"0.08em"}}>{met.label}</div>
-                    </div>
-                    {sorted.map((p,i) => (
-                      <div key={p.id} style={{display:"flex",alignItems:"center",gap:8,padding:"6px 10px",borderBottom:"1px solid #e2e8f0"}}>
-                        <div style={{width:16,height:16,borderRadius:"50%",background:i===0?"#fbbf24":i===1?"#94a3b8":"#cd7c2e",display:"flex",alignItems:"center",justifyContent:"center",fontSize:9,fontWeight:800,color:"#fff",flexShrink:0}}>{i+1}</div>
-                        <div style={{flex:1,fontSize:10,fontWeight:600,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{p.nombre.split(" ")[0]}</div>
-                        <div style={{fontSize:10,fontWeight:700,fontFamily:"monospace",color:met.color}}>{typeof p.cat?.[met.key]==="number"?Math.round(p.cat[met.key]):p.cat?.[met.key]||0}{met.unit}</div>
-                      </div>
-                    ))}
+                  <div key={key} style={{background:'#f8fafc',border:'1px solid #e2e8f0',borderRadius:8,padding:'10px 12px'}}>
+                    <div style={{fontSize:9,fontWeight:700,color:'#64748b',textTransform:'uppercase',letterSpacing:'0.08em',marginBottom:8,borderLeft:`3px solid ${color}`,paddingLeft:6}}>{label}</div>
+                    {chartData.map((r,i) => {
+                      const val = pf(r[key]);
+                      const pct = (val/maxV)*100;
+                      const pc = getPC(r.Posicion);
+                      return (
+                        <div key={i} style={{display:'flex',alignItems:'center',gap:6,marginBottom:3}}>
+                          <div style={{width:3,height:12,background:pc,borderRadius:1,flexShrink:0}}/>
+                          <div style={{width:90,fontSize:8,color:'#374151',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap',flexShrink:0}}>{(r.Jugador||'').split(' ')[0]} {(r.Jugador||'').split(' ')[1]?.[0]}.</div>
+                          <div style={{flex:1,height:10,background:'#e5e7eb',borderRadius:2,overflow:'hidden'}}>
+                            <div style={{height:'100%',width:`${pct}%`,background:color,borderRadius:2}}/>
+                          </div>
+                          <div style={{width:45,fontSize:8,fontWeight:700,color:'#111',fontFamily:'monospace',textAlign:'right',flexShrink:0}}>{key==='VelMax'?val.toFixed(1):Math.round(val).toLocaleString()}</div>
+                        </div>
+                      );
+                    })}
                   </div>
                 );
               })}
             </div>
+          </div>
 
-            {/* FOOTER */}
-            <div style={{borderTop:"1px solid #e2e8f0",paddingTop:12,display:"flex",justifyContent:"space-between"}}>
-              <div style={{fontSize:9,color:"#94a3b8"}}>⬡ PERFLOAD · Orsomarso SC · BCA 2026-1</div>
-              <div style={{fontSize:9,color:"#94a3b8"}}>{new Date().toLocaleDateString("es-CO",{weekday:"long",year:"numeric",month:"long",day:"numeric"})}</div>
+          {/* ── PÁGINA 3: CONSOLIDADO POR PARTIDO ── */}
+          <div style={{pageBreakAfter:'always',padding:'16px 24px'}}>
+            <div style={{background:'#06080f',color:'#fff',padding:'10px 16px',borderRadius:8,marginBottom:16}}>
+              <div style={{fontSize:16,fontWeight:900,fontFamily:"'Barlow Condensed',sans-serif"}}>CONSOLIDADO DE PROMEDIOS POR PARTIDO · TEMPORADA 2026-1</div>
+            </div>
+            {(() => {
+              const todosPartidos = partidos;
+              if (!todosPartidos.length) return null;
+              return (
+                <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:16}}>
+                  {[
+                    {key:'Distancia',label:'DISTANCIA TOTAL PROMEDIO (m)',color:'#00e676'},
+                    {key:'HSR',label:'HSR PROMEDIO >19.8 km/h (m)',color:'#ce93d8'},
+                    {key:'Sprint',label:'SPRINT PROMEDIO >25 km/h (m)',color:'#ef4444'},
+                    {key:'HMLD',label:'HMLD PROMEDIO (m)',color:'#ffab40'},
+                  ].map(({key,label,color}) => {
+                    const partData = todosPartidos.map(p => {
+                      const filasPart = gpsData.filter(r => r.Actividad === p.actividad);
+                      const campoRows = filasPart.filter(r => !(r.Posicion||'').toLowerCase().includes('goal'));
+                      const avg = campoRows.length ? Math.round(campoRows.reduce((s,r)=>s+pf(r[key]),0)/10) : 0;
+                      const label = p.actividad.replace('Fecha ','F').replace(' 26-1','').replace(' VS ',' vs ').replace(' vs ',' vs\n');
+                      return {label, avg, full: p.actividad};
+                    });
+                    const maxV = Math.max(...partData.map(d=>d.avg)) || 1;
+                    const isCurrent = (full) => full === sesionSelec;
+                    return (
+                      <div key={key} style={{background:'#f8fafc',border:'1px solid #e2e8f0',borderRadius:8,padding:'10px 12px'}}>
+                        <div style={{fontSize:9,fontWeight:700,color:'#64748b',textTransform:'uppercase',letterSpacing:'0.08em',marginBottom:10,borderLeft:`3px solid ${color}`,paddingLeft:6}}>{label}</div>
+                        {partData.map((d,i) => (
+                          <div key={i} style={{display:'flex',alignItems:'center',gap:6,marginBottom:4}}>
+                            <div style={{width:70,fontSize:7.5,color:isCurrent(d.full)?'#111':'#64748b',fontWeight:isCurrent(d.full)?700:400,flexShrink:0,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{d.label.replace('\n',' ')}</div>
+                            <div style={{flex:1,height:12,background:'#e5e7eb',borderRadius:2,overflow:'hidden'}}>
+                              <div style={{height:'100%',width:`${(d.avg/maxV)*100}%`,background:isCurrent(d.full)?color:`${color}60`,borderRadius:2}}/>
+                            </div>
+                            <div style={{width:50,fontSize:8,fontWeight:700,color:isCurrent(d.full)?'#111':'#64748b',fontFamily:'monospace',textAlign:'right'}}>{d.avg.toLocaleString()}</div>
+                          </div>
+                        ))}
+                      </div>
+                    );
+                  })}
+                </div>
+              );
+            })()}
+          </div>
+
+          {/* Footer */}
+          <div style={{padding:'8px 24px',borderTop:'1px solid #e2e8f0',display:'flex',justifyContent:'space-between'}}>
+            <div style={{fontSize:8,color:'#94a3b8'}}>⬡ PERFLOAD · Orsomarso SC · BCA 2026-1</div>
+            <div style={{fontSize:8,color:'#94a3b8'}}>{new Date().toLocaleDateString('es-CO',{year:'numeric',month:'long',day:'numeric'})}</div>
+          </div>
+        </div>
+      );
+    };
+
+    // ── INFORME JUGADOR ──
+    const InformeJugador = () => {
+      if (!jugadorActual) return null;
+      const nombre = jugadorActual.nombre;
+      const filasJug = gpsData.filter(r => (r.Jugador||'').toLowerCase().includes(nombre.toLowerCase().split(' ')[0].toLowerCase()));
+      const filasSelec = diasSelec.length > 0 ? filasJug.filter(r => diasSelec.includes(r.Fecha)) : filasJug.slice(-1);
+      if (!filasSelec.length) return <div style={{padding:40,textAlign:'center',color:'#94a3b8'}}>Sin datos para los días seleccionados</div>;
+
+      const sc = statusCfg[jugadorActual.status];
+      const pc = getPC(jugadorActual.pos);
+      const w = jugadorActual.wellness;
+
+      // All matches for this player for consolidado
+      const partJug = filasJug.filter(r => r.Actividad && r.Actividad.toLowerCase().includes('fecha'))
+        .sort((a,b) => a.Fecha.localeCompare(b.Fecha));
+
+      return (
+        <div id="informe-render" style={{background:'#fff',fontFamily:"'Barlow',sans-serif",fontSize:11}}>
+
+          {/* ── PÁGINA 1: RESUMEN POR DÍA ── */}
+          <div style={{pageBreakAfter:'always'}}>
+            <div style={{background:'#06080f',color:'#fff',padding:'16px 24px',display:'flex',justifyContent:'space-between',alignItems:'center'}}>
+              <div>
+                <div style={{fontSize:9,color:'rgba(255,255,255,0.4)',letterSpacing:'0.15em',textTransform:'uppercase'}}>⬡ PERFLOAD · INFORME INDIVIDUAL · ORSOMARSO SC</div>
+                <div style={{fontSize:26,fontWeight:900,fontFamily:"'Barlow Condensed',sans-serif",letterSpacing:'-0.01em'}}>{nombre.toUpperCase()}</div>
+                <div style={{fontSize:11,color:'rgba(255,255,255,0.4)',marginTop:2}}>{jugadorActual.pos} · {jugadorActual.edad} años · {jugadorActual.peso}kg · {jugadorActual.talla}cm</div>
+              </div>
+              <div style={{display:'flex',gap:16,alignItems:'center'}}>
+                <span style={{padding:'4px 12px',borderRadius:4,fontSize:11,fontWeight:700,background:`${sc.color}25`,color:sc.color,border:`1px solid ${sc.color}40`}}>{sc.label.toUpperCase()}</span>
+                <div style={{textAlign:'right'}}>
+                  <div style={{fontSize:36,fontWeight:900,color:acwrColor(jugadorActual.acwr),fontFamily:"'Barlow Condensed',sans-serif",lineHeight:1}}>{jugadorActual.acwr}</div>
+                  <div style={{fontSize:8,color:'rgba(255,255,255,0.3)',textTransform:'uppercase'}}>ACWR</div>
+                </div>
+              </div>
+            </div>
+
+            <div style={{padding:'12px 24px'}}>
+              {/* Sessions selected */}
+              {filasSelec.map((r,idx) => {
+                const maxRef = {Distancia:12000,PlayerLoad:1200,VelMax:36,MPM:120,HSR:800,Sprint:300,NSprintsH:20,AcelsH:20,DecelsH:20,HMLD:1500};
+                return (
+                  <div key={idx} style={{marginBottom:16,background:'#f8fafc',border:'1px solid #e2e8f0',borderRadius:8,overflow:'hidden'}}>
+                    <div style={{background:'#1e293b',color:'#fff',padding:'8px 14px',display:'flex',justifyContent:'space-between',alignItems:'center'}}>
+                      <div style={{fontSize:12,fontWeight:700,fontFamily:"'Barlow Condensed',sans-serif"}}>{r.Actividad?.toUpperCase()}</div>
+                      <div style={{fontSize:10,color:'rgba(255,255,255,0.5)'}}>{r.Fecha} · {pf(r.Duracion).toFixed(0)} min</div>
+                    </div>
+                    <div style={{padding:'10px 14px'}}>
+                      <div style={{display:'grid',gridTemplateColumns:'repeat(5,1fr)',gap:6,marginBottom:10}}>
+                        {[
+                          {l:'Distancia',v:`${Math.round(pf(r.Distancia)).toLocaleString()} m`,c:'#00e676'},
+                          {l:'Player Load',v:`${Math.round(pf(r.PlayerLoad))} UA`,c:'#ffab40'},
+                          {l:'Vel. Máx',v:`${pf(r.VelMax).toFixed(1)} km/h`,c:'#40c4ff'},
+                          {l:'HSR',v:`${Math.round(pf(r.HSR))} m`,c:'#ce93d8'},
+                          {l:'HMLD',v:`${Math.round(pf(r.HMLD))} m`,c:'#f97316'},
+                        ].map((k,i) => (
+                          <div key={i} style={{background:'#fff',border:'1px solid #e2e8f0',borderRadius:6,padding:'8px',textAlign:'center'}}>
+                            <div style={{fontSize:16,fontWeight:900,color:k.c,fontFamily:"'Barlow Condensed',sans-serif",lineHeight:1}}>{k.v}</div>
+                            <div style={{fontSize:8,color:'#94a3b8',textTransform:'uppercase',marginTop:2}}>{k.l}</div>
+                          </div>
+                        ))}
+                      </div>
+                      <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10}}>
+                        <div>
+                          {[
+                            {k:'Distancia',l:'Distancia total',c:'#00e676',max:maxRef.Distancia,u:'m'},
+                            {k:'PlayerLoad',l:'Player Load',c:'#ffab40',max:maxRef.PlayerLoad,u:'UA'},
+                            {k:'HSR',l:'HSR >19.8 km/h',c:'#ce93d8',max:maxRef.HSR,u:'m'},
+                            {k:'Sprint',l:'Sprint >25 km/h',c:'#ef4444',max:maxRef.Sprint,u:'m'},
+                            {k:'HMLD',l:'HMLD',c:'#f97316',max:maxRef.HMLD,u:'m'},
+                          ].map(({k,l,c,max,u},i) => {
+                            const val = pf(r[k]);
+                            const pct = Math.min(100,(val/max)*100);
+                            return (
+                              <div key={i} style={{marginBottom:6}}>
+                                <div style={{display:'flex',justifyContent:'space-between',marginBottom:2}}>
+                                  <span style={{fontSize:9,color:'#64748b'}}>{l}</span>
+                                  <span style={{fontSize:9,fontWeight:700,fontFamily:'monospace'}}>{Math.round(val).toLocaleString()} {u}</span>
+                                </div>
+                                <div style={{height:5,background:'#e5e7eb',borderRadius:2}}>
+                                  <div style={{height:'100%',width:`${pct}%`,background:c,borderRadius:2}}/>
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                        <div>
+                          {[
+                            {k:'MPM',l:'m/min',c:'#06b6d4',max:maxRef.MPM,u:''},
+                            {k:'VelMax',l:'Vel. Máxima',c:'#40c4ff',max:maxRef.VelMax,u:'km/h'},
+                            {k:'NSprintsH',l:'# Sprints',c:'#ef4444',max:maxRef.NSprintsH,u:''},
+                            {k:'AcelsH',l:'Acels >3 m/s²',c:'#fbbf24',max:maxRef.AcelsH,u:''},
+                            {k:'DecelsH',l:'Decels >3 m/s²',c:'#60a5fa',max:maxRef.DecelsH,u:''},
+                          ].map(({k,l,c,max,u},i) => {
+                            const val = pf(r[k]);
+                            const pct = Math.min(100,(val/max)*100);
+                            return (
+                              <div key={i} style={{marginBottom:6}}>
+                                <div style={{display:'flex',justifyContent:'space-between',marginBottom:2}}>
+                                  <span style={{fontSize:9,color:'#64748b'}}>{l}</span>
+                                  <span style={{fontSize:9,fontWeight:700,fontFamily:'monospace'}}>{k==='VelMax'?val.toFixed(1):Math.round(val)} {u}</span>
+                                </div>
+                                <div style={{height:5,background:'#e5e7eb',borderRadius:2}}>
+                                  <div style={{height:'100%',width:`${pct}%`,background:c,borderRadius:2}}/>
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+
+              {/* Wellness del día */}
+              {w && (
+                <div style={{background:'#f8fafc',border:'1px solid #e2e8f0',borderRadius:8,padding:'10px 14px'}}>
+                  <div style={{fontSize:9,fontWeight:700,color:'#64748b',textTransform:'uppercase',letterSpacing:'0.1em',marginBottom:8}}>WELLNESS DEL DÍA</div>
+                  <div style={{display:'flex',gap:12,alignItems:'center'}}>
+                    {[{l:'Sueño',v:w.sueno,inv:false},{l:'Fatiga',v:w.fatiga,inv:true},{l:'Dolor',v:w.dolor,inv:true},{l:'Humor',v:w.humor,inv:false},{l:'Estrés',v:w.estres,inv:true}].map((d,i) => {
+                      const score = d.inv ? 10-d.v : d.v;
+                      const c = score>=7?'#10b981':score>=5?'#f59e0b':'#ef4444';
+                      return (
+                        <div key={i} style={{textAlign:'center'}}>
+                          <div style={{width:32,height:32,borderRadius:'50%',background:`${c}15`,border:`2px solid ${c}`,display:'flex',alignItems:'center',justifyContent:'center',fontSize:13,fontWeight:800,color:c,margin:'0 auto 3px'}}>{d.v}</div>
+                          <div style={{fontSize:7,color:'#94a3b8',textTransform:'uppercase'}}>{d.l}</div>
+                        </div>
+                      );
+                    })}
+                    <div style={{marginLeft:'auto',display:'flex',alignItems:'center',gap:8,padding:'8px 14px',background:'#fff',border:'1px solid #e2e8f0',borderRadius:6}}>
+                      <span style={{fontSize:9,color:'#64748b'}}>RPE</span>
+                      <span style={{fontSize:20,fontWeight:900,color:'#f97316',fontFamily:"'Barlow Condensed',sans-serif"}}>{w.rpe}/10</span>
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
           </div>
+
+          {/* ── PÁGINA 2: CONSOLIDADO DE COMPETENCIA ── */}
+          {partJug.length > 0 && (
+            <div style={{padding:'16px 24px'}}>
+              <div style={{background:'#06080f',color:'#fff',padding:'10px 16px',borderRadius:8,marginBottom:16}}>
+                <div style={{fontSize:16,fontWeight:900,fontFamily:"'Barlow Condensed',sans-serif"}}>{nombre.toUpperCase()} · CONSOLIDADO EN COMPETENCIA · TEMPORADA 2026-1</div>
+              </div>
+              <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:14}}>
+                {[
+                  {key:'Distancia',label:'DISTANCIA TOTAL (m)',color:'#00e676'},
+                  {key:'HSR',label:'HSR >19.8 km/h (m)',color:'#ce93d8'},
+                  {key:'Sprint',label:'SPRINT >25 km/h (m)',color:'#ef4444'},
+                  {key:'HMLD',label:'HMLD (m)',color:'#ffab40'},
+                  {key:'VelMax',label:'VELOCIDAD MÁXIMA (km/h)',color:'#40c4ff'},
+                  {key:'NSprintsH',label:'# SPRINTS',color:'#f97316'},
+                  {key:'AcelsH',label:'ACELERACIONES >3 m/s²',color:'#fbbf24'},
+                  {key:'DecelsH',label:'DESACELERACIONES >3 m/s²',color:'#60a5fa'},
+                ].map(({key,label,color}) => {
+                  const maxV = Math.max(...partJug.map(r=>pf(r[key]))) || 1;
+                  return (
+                    <div key={key} style={{background:'#f8fafc',border:'1px solid #e2e8f0',borderRadius:8,padding:'10px 12px'}}>
+                      <div style={{fontSize:9,fontWeight:700,color:'#64748b',textTransform:'uppercase',letterSpacing:'0.08em',marginBottom:8,borderLeft:`3px solid ${color}`,paddingLeft:6}}>{label}</div>
+                      {partJug.map((r,i) => {
+                        const val = pf(r[key]);
+                        const pct = (val/maxV)*100;
+                        const isSel = diasSelec.includes(r.Fecha);
+                        return (
+                          <div key={i} style={{display:'flex',alignItems:'center',gap:6,marginBottom:3}}>
+                            <div style={{width:80,fontSize:7.5,color:isSel?'#111':'#64748b',fontWeight:isSel?700:400,flexShrink:0,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{r.Actividad.replace('Fecha ','F').replace(' 26-1','').replace(' VS ',' vs ')}</div>
+                            <div style={{flex:1,height:10,background:'#e5e7eb',borderRadius:2,overflow:'hidden'}}>
+                              <div style={{height:'100%',width:`${pct}%`,background:isSel?color:`${color}55`,borderRadius:2}}/>
+                            </div>
+                            <div style={{width:45,fontSize:8,fontWeight:700,color:isSel?'#111':'#64748b',fontFamily:'monospace',textAlign:'right'}}>{key==='VelMax'?val.toFixed(1):Math.round(val).toLocaleString()}</div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  );
+                })}
+              </div>
+              <div style={{marginTop:12,borderTop:'1px solid #e2e8f0',paddingTop:8,display:'flex',justifyContent:'space-between'}}>
+                <div style={{fontSize:8,color:'#94a3b8'}}>⬡ PERFLOAD · Orsomarso SC · BCA 2026-1</div>
+                <div style={{fontSize:8,color:'#94a3b8'}}>{new Date().toLocaleDateString('es-CO',{year:'numeric',month:'long',day:'numeric'})}</div>
+              </div>
+            </div>
+          )}
         </div>
       );
     };
 
     return (
       <div>
-        <div style={{fontSize:22,fontWeight:800,letterSpacing:"-0.02em",marginBottom:6,color:"#f0f5ff"}}>Informes PDF</div>
-        <div style={{fontSize:12,color:"rgba(255,255,255,0.42)",marginBottom:20}}>Genera informes profesionales por jugador o sesión</div>
+        <div style={{fontSize:22,fontWeight:800,letterSpacing:'-0.02em',marginBottom:6,color:'#f0f5ff'}}>Informes PDF</div>
+        <div style={{fontSize:12,color:'rgba(255,255,255,0.42)',marginBottom:20}}>Informes profesionales de partido o jugador</div>
 
-        <div style={{display:"grid",gridTemplateColumns:"300px 1fr",gap:16}}>
-          {/* PANEL CONFIGURACIÓN */}
-          <div style={{display:"flex",flexDirection:"column",gap:10}}>
-            {/* Tipo */}
-            <div style={{background:"#0e1220",border:"1px solid rgba(255,255,255,0.06)",borderRadius:12,padding:"16px"}}>
-              <div style={{fontSize:10,fontWeight:700,color:"rgba(255,255,255,0.42)",textTransform:"uppercase",letterSpacing:"0.1em",marginBottom:10}}>Tipo de informe</div>
-              <div style={{display:"flex",gap:6}}>
-                {[["jugador","👤 Jugador"],["sesion","📋 Sesión"]].map(([v,l])=>(
+        <div style={{display:'grid',gridTemplateColumns:'280px 1fr',gap:16}}>
+          {/* Panel config */}
+          <div style={{display:'flex',flexDirection:'column',gap:10}}>
+            <div style={{background:'#0e1220',border:'1px solid rgba(255,255,255,0.06)',borderRadius:12,padding:'14px'}}>
+              <div style={{fontSize:10,fontWeight:700,color:'rgba(255,255,255,0.42)',textTransform:'uppercase',letterSpacing:'0.1em',marginBottom:10}}>Tipo de informe</div>
+              <div style={{display:'flex',gap:6}}>
+                {[['partido','📋 Partido'],['jugador','👤 Jugador']].map(([v,l])=>(
                   <button key={v} onClick={()=>{setModo(v);setPreview(false);}} style={{
-                    flex:1,padding:"9px",borderRadius:8,fontSize:11,fontWeight:700,cursor:"pointer",
-                    border:`1px solid ${modo===v?"#00e676":"rgba(255,255,255,0.06)"}`,
-                    background:modo===v?"rgba(0,230,118,0.12)":"transparent",
-                    color:modo===v?"#00e676":"rgba(255,255,255,0.42)"}}>
+                    flex:1,padding:'8px',borderRadius:8,fontSize:11,fontWeight:700,cursor:'pointer',
+                    border:`1px solid ${modo===v?'#00e676':'rgba(255,255,255,0.06)'}`,
+                    background:modo===v?'rgba(0,230,118,0.12)':'transparent',
+                    color:modo===v?'#00e676':'rgba(255,255,255,0.42)'}}>
                     {l}
                   </button>
                 ))}
               </div>
             </div>
 
-            {/* Selector jugador */}
-            {modo==="jugador" && (
-              <div style={{background:"#0e1220",border:"1px solid rgba(255,255,255,0.06)",borderRadius:12,padding:"16px"}}>
-                <div style={{fontSize:10,fontWeight:700,color:"rgba(255,255,255,0.42)",textTransform:"uppercase",letterSpacing:"0.1em",marginBottom:10}}>Jugador</div>
-                <div style={{display:"flex",flexDirection:"column",gap:4,maxHeight:300,overflowY:"auto"}}>
-                  {playersWithACWR.map(p=>(
-                    <div key={p.id} onClick={()=>{setJugSelec(p.id);setPreview(false);}} style={{
-                      display:"flex",alignItems:"center",gap:8,padding:"7px 10px",borderRadius:8,cursor:"pointer",
-                      background:jugSelec===p.id?`${statusCfg[p.status].color}12`:"rgba(255,255,255,0.02)",
-                      border:`1px solid ${jugSelec===p.id?statusCfg[p.status].color+"40":"rgba(255,255,255,0.04)"}`}}>
-                      <div style={{width:5,height:5,borderRadius:"50%",background:statusCfg[p.status].color,flexShrink:0}}/>
-                      <div style={{flex:1,fontSize:11,fontWeight:600,color:"#e8edf5"}}>{p.nombre}</div>
-                      <div style={{fontSize:9,color:"rgba(255,255,255,0.3)"}}>{p.pos}</div>
+            {modo==='partido' && (
+              <div style={{background:'#0e1220',border:'1px solid rgba(255,255,255,0.06)',borderRadius:12,padding:'14px'}}>
+                <div style={{fontSize:10,fontWeight:700,color:'rgba(255,255,255,0.42)',textTransform:'uppercase',letterSpacing:'0.1em',marginBottom:10}}>Seleccionar partido</div>
+                {loadingGps ? <div style={{color:'rgba(255,255,255,0.3)',fontSize:11}}>Cargando...</div> :
+                <div style={{display:'flex',flexDirection:'column',gap:4,maxHeight:280,overflowY:'auto'}}>
+                  {partidos.map((p,i)=>(
+                    <div key={i} onClick={()=>{setSesionSelec(p.actividad);setPreview(false);}} style={{
+                      padding:'7px 10px',borderRadius:8,cursor:'pointer',
+                      background:sesionSelec===p.actividad?'rgba(0,230,118,0.08)':'rgba(255,255,255,0.02)',
+                      border:`1px solid ${sesionSelec===p.actividad?'rgba(0,230,118,0.3)':'rgba(255,255,255,0.04)'}`}}>
+                      <div style={{fontSize:11,fontWeight:600,color:'#e8edf5'}}>{p.actividad}</div>
+                      <div style={{fontSize:9,color:'rgba(255,255,255,0.3)',marginTop:1}}>{p.fecha}</div>
                     </div>
                   ))}
-                </div>
+                </div>}
               </div>
             )}
 
-            {/* Selector sesión */}
-            {modo==="sesion" && (
-              <div style={{background:"#0e1220",border:"1px solid rgba(255,255,255,0.06)",borderRadius:12,padding:"16px"}}>
-                <div style={{fontSize:10,fontWeight:700,color:"rgba(255,255,255,0.42)",textTransform:"uppercase",letterSpacing:"0.1em",marginBottom:10}}>Sesión / Partido</div>
-                <div style={{display:"flex",flexDirection:"column",gap:4,maxHeight:300,overflowY:"auto"}}>
-                  {sesionesUnicas.map((s,i)=>(
-                    <div key={i} onClick={()=>{setSesionSelec(s.actividad);setPreview(false);}} style={{
-                      padding:"8px 10px",borderRadius:8,cursor:"pointer",
-                      background:sesionSelec===s.actividad?"rgba(0,230,118,0.08)":"rgba(255,255,255,0.02)",
-                      border:`1px solid ${sesionSelec===s.actividad?"rgba(0,230,118,0.3)":"rgba(255,255,255,0.04)"}`}}>
-                      <div style={{fontSize:11,fontWeight:600,color:"#e8edf5",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{s.actividad}</div>
-                      <div style={{fontSize:9,color:"rgba(255,255,255,0.3)",marginTop:2}}>{s.fecha}</div>
-                    </div>
-                  ))}
+            {modo==='jugador' && (
+              <>
+                <div style={{background:'#0e1220',border:'1px solid rgba(255,255,255,0.06)',borderRadius:12,padding:'14px'}}>
+                  <div style={{fontSize:10,fontWeight:700,color:'rgba(255,255,255,0.42)',textTransform:'uppercase',letterSpacing:'0.1em',marginBottom:10}}>Jugador</div>
+                  <div style={{display:'flex',flexDirection:'column',gap:3,maxHeight:180,overflowY:'auto'}}>
+                    {playersWithACWR.map(p=>(
+                      <div key={p.id} onClick={()=>{setJugSelec(p.id);setDiasSelec([]);setPreview(false);}} style={{
+                        display:'flex',alignItems:'center',gap:7,padding:'6px 9px',borderRadius:7,cursor:'pointer',
+                        background:jugSelec===p.id?`${statusCfg[p.status].color}12`:'rgba(255,255,255,0.02)',
+                        border:`1px solid ${jugSelec===p.id?statusCfg[p.status].color+'40':'rgba(255,255,255,0.04)'}`}}>
+                        <div style={{width:4,height:4,borderRadius:'50%',background:statusCfg[p.status].color}}/>
+                        <span style={{flex:1,fontSize:11,fontWeight:600,color:'#e8edf5'}}>{p.nombre}</span>
+                        <span style={{fontSize:9,color:'rgba(255,255,255,0.3)'}}>{p.pos}</span>
+                      </div>
+                    ))}
+                  </div>
                 </div>
-              </div>
+                <div style={{background:'#0e1220',border:'1px solid rgba(255,255,255,0.06)',borderRadius:12,padding:'14px'}}>
+                  <div style={{fontSize:10,fontWeight:700,color:'rgba(255,255,255,0.42)',textTransform:'uppercase',letterSpacing:'0.1em',marginBottom:6}}>
+                    Sesiones <span style={{color:'rgba(255,255,255,0.25)',fontWeight:400}}>({diasSelec.length===0?'última':diasSelec.length+' sel.'})</span>
+                  </div>
+                  <div style={{display:'flex',flexDirection:'column',gap:3,maxHeight:200,overflowY:'auto'}}>
+                    {diasJugador.map((f,i)=>{
+                      const act = gpsData.find(r => r.Fecha===f && (r.Jugador||'').toLowerCase().includes((jugadorActual?.nombre||'').toLowerCase().split(' ')[0].toLowerCase()))?.Actividad || f;
+                      return (
+                        <div key={i} onClick={()=>toggleDia(f)} style={{
+                          display:'flex',alignItems:'center',gap:7,padding:'6px 9px',borderRadius:7,cursor:'pointer',
+                          background:diasSelec.includes(f)?'rgba(0,230,118,0.08)':'rgba(255,255,255,0.02)',
+                          border:`1px solid ${diasSelec.includes(f)?'rgba(0,230,118,0.3)':'rgba(255,255,255,0.04)'}`}}>
+                          <div style={{width:10,height:10,borderRadius:2,border:`1.5px solid ${diasSelec.includes(f)?'#00e676':'rgba(255,255,255,0.3)'}`,background:diasSelec.includes(f)?'#00e676':'transparent',display:'flex',alignItems:'center',justifyContent:'center',fontSize:7,color:'#000',flexShrink:0}}>{diasSelec.includes(f)?'✓':''}</div>
+                          <div style={{flex:1}}>
+                            <div style={{fontSize:10,color:'#e8edf5',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{act}</div>
+                            <div style={{fontSize:8,color:'rgba(255,255,255,0.3)'}}>{f}</div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              </>
             )}
 
-            {/* Botón generar */}
-            <button onClick={generarInforme} disabled={generando} style={{
-              padding:"12px",borderRadius:12,fontSize:13,fontWeight:800,cursor:"pointer",
-              background:generando?"rgba(0,230,118,0.3)":"#00e676",color:"#06080f",border:"none",
-              letterSpacing:"0.04em"}}>
-              {generando?"⏳ Generando...":"⊞ Generar Informe"}
+            <button onClick={()=>{setGenerando(true);setTimeout(()=>{setGenerando(false);setPreview(true);},800);}} disabled={generando} style={{
+              padding:'11px',borderRadius:11,fontSize:13,fontWeight:800,cursor:'pointer',
+              background:generando?'rgba(0,230,118,0.3)':'#00e676',color:'#06080f',border:'none',letterSpacing:'0.04em'}}>
+              {generando?'⏳ Generando...':'⊞ Generar Informe'}
             </button>
-
             {preview && (
               <button onClick={imprimirPDF} style={{
-                padding:"10px",borderRadius:12,fontSize:12,fontWeight:700,cursor:"pointer",
-                background:"transparent",color:"#40c4ff",border:"1px solid rgba(64,196,255,0.3)"}}>
+                padding:'9px',borderRadius:11,fontSize:12,fontWeight:700,cursor:'pointer',
+                background:'transparent',color:'#40c4ff',border:'1px solid rgba(64,196,255,0.3)'}}>
                 🖨 Imprimir / Guardar PDF
               </button>
             )}
           </div>
 
-          {/* VISTA PREVIA */}
-          <div style={{background:"#f8fafc",borderRadius:14,minHeight:500,overflow:"auto",border:"1px solid rgba(255,255,255,0.06)"}}>
+          {/* Preview */}
+          <div style={{background:'#f1f5f9',borderRadius:14,minHeight:500,overflow:'auto',border:'1px solid rgba(255,255,255,0.06)'}}>
             {!preview ? (
-              <div style={{display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",height:"100%",minHeight:460,gap:12,color:"rgba(255,255,255,0.3)"}}>
+              <div style={{display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',height:'100%',minHeight:460,gap:12}}>
                 <div style={{fontSize:48}}>⊞</div>
-                <div style={{fontSize:14,fontWeight:600,color:"rgba(255,255,255,0.5)"}}>Vista previa del informe</div>
-                <div style={{fontSize:11,color:"rgba(255,255,255,0.25)",textAlign:"center",maxWidth:240}}>
-                  {modo==="jugador"?"Selecciona un jugador y genera el informe":"Selecciona una sesión y genera el informe"}
+                <div style={{fontSize:14,fontWeight:600,color:'rgba(255,255,255,0.4)'}}>Vista previa del informe</div>
+                <div style={{fontSize:11,color:'rgba(255,255,255,0.2)',textAlign:'center',maxWidth:240}}>
+                  {modo==='partido'?'Selecciona un partido':'Selecciona jugador y sesiones'}
                 </div>
               </div>
-            ) : modo==="jugador" ? <InformeJugador/> : <InformeSesion/>}
+            ) : modo==='partido' ? <InformePartido/> : <InformeJugador/>}
           </div>
         </div>
       </div>
