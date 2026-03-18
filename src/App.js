@@ -387,9 +387,9 @@ export default function PerfLoad() {
       if (Array.isArray(rows) && rows.length > 0) {
         const byPlayer = {};
         rows.forEach(r => {
-          const nombre = r.Jugador || r.jugador;
+          const nombre = (r.Jugador || r.jugador || "").trim();
           if (!nombre || nombre === 'Test') return;
-          const ts = r.Timestamp || r.timestamp || '';
+          const ts = String(r.Timestamp || r.timestamp || "");
           if (!byPlayer[nombre] || ts > (byPlayer[nombre]._ts||'')) {
             byPlayer[nombre] = {
               jugador: nombre,
