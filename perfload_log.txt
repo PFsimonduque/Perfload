@@ -1,0 +1,22 @@
+[2026-03-26 00:12:18] =======================================================
+[2026-03-26 00:12:18] ⬡ PERFLOAD GPS AUTO-UPLOADER — Iniciado
+[2026-03-26 00:12:18] 📂 Carpeta monitoreada: C:\Users\power\perfload\GPS_SUBIR
+[2026-03-26 00:12:18] 📁 Procesados en: C:\Users\power\perfload\GPS_PROCESADOS
+[2026-03-26 00:12:18] Arrastra ZIPs de Catapult a GPS_SUBIR para subir
+[2026-03-26 00:12:18] Presiona Ctrl+C para detener
+[2026-03-26 00:12:18] =======================================================
+[2026-03-26 23:28:19] =======================================================
+[2026-03-26 23:28:19] ⬡ PERFLOAD GPS AUTO-UPLOADER — Iniciado
+[2026-03-26 23:28:19] 📂 Carpeta monitoreada: C:\Users\power\perfload\GPS_SUBIR
+[2026-03-26 23:28:19] 📁 Procesados en: C:\Users\power\perfload\GPS_PROCESADOS
+[2026-03-26 23:28:19] Arrastra ZIPs de Catapult a GPS_SUBIR para subir
+[2026-03-26 23:28:19] Presiona Ctrl+C para detener
+[2026-03-26 23:28:19] =======================================================
+[2026-03-30 23:27:28] =======================================================
+[2026-03-30 23:27:28] ⬡ PERFLOAD GPS AUTO-UPLOADER — Iniciado
+[2026-03-30 23:27:28] 📂 Carpeta monitoreada: C:\Users\power\perfload\GPS_SUBIR
+[2026-03-30 23:27:28] 📁 Procesados en: C:\Users\power\perfload\GPS_PROCESADOS
+[2026-03-30 23:27:28] Arrastra ZIPs de Catapult a GPS_SUBIR para subir
+[2026-03-30 23:27:28] Presiona Ctrl+C para detener
+[2026-03-30 23:27:28] =======================================================
+[2026-03-30 23:32:12] ⬡ PerfLoad Watcher detenido.
