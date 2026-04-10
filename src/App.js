@@ -171,8 +171,8 @@ const SEED_PLAYERS = [
   { id:29, nombre:"Sergio Martinez", pos:"DEL", edad:17, peso:74.6, talla:179, loads:[665, 324, 202, 219, 292, 599, 152, 306, 126, 467, 364, 26, 0, 559, 318, 332, 276, 185, 338, 472], cat:{distancia:3594,playerLoad:472.5,velMax:25.0,mpm:76.0,hsr:2,sprint:0,sprintsN:0,acelsM:13,acelsH:3,decelsM:22,decelsH:8,actividad:"25 feb. M8 S34 EJECUCIÓN",fecha:"2026-02-25"}, catSemana:null, catMes:{distancia:31772,playerLoad:3744.1,velMax:31.2,mpm:61.2,hsr:313,sprint:0,sprintsN:14,acelsM:78,acelsH:39,decelsM:71,decelsH:38,sesiones:11}, catTemporada:{distancia:54088,playerLoad:6197.4,velMax:31.2,mpm:67.3,hsr:599,sprint:0,sprintsN:31,acelsM:118,acelsH:63,decelsM:113,decelsH:62,sesiones:18}, wys:null },
 ];
 
-const APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbyitoio4B9MIB6EUSPSRYg5rw_Sn5qHuQmwji7DXA8FOzA6m0Fz7c6BYF9-2J-SIyHe/exec";
-const GPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbyitoio4B9MIB6EUSPSRYg5rw_Sn5qHuQmwji7DXA8FOzA6m0Fz7c6BYF9-2J-SIyHe/exec";
+const APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbwNMqWpxD403S0S3PRvF2r8zuwIQRPhEB-ywwK7jOCVd_H62FTrUA2FV7N0J25fuC0R/exec";
+const GPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbykIhkZWn3CuYqETRgb9HQBR2dRBdj8r43b4czbTLQ-tDXRwDg6Q4WWVRJpKsmOqZ6hrQ/exec";
 
 const SEED_WELLNESS = [
   { jugador:"Hector Arango", sueno:5, fatiga:4, dolor:3, humor:6, estres:6, rpe:8 },
@@ -1950,5 +1950,7 @@ export default function PerfLoad() {
     </div>
   );
 }
+
+
 
 
