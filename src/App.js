@@ -171,7 +171,7 @@ const SEED_PLAYERS = [
   { id:29, nombre:"Sergio Martinez", pos:"DEL", edad:17, peso:74.6, talla:179, loads:[665, 324, 202, 219, 292, 599, 152, 306, 126, 467, 364, 26, 0, 559, 318, 332, 276, 185, 338, 472], cat:{distancia:3594,playerLoad:472.5,velMax:25.0,mpm:76.0,hsr:2,sprint:0,sprintsN:0,acelsM:13,acelsH:3,decelsM:22,decelsH:8,actividad:"25 feb. M8 S34 EJECUCIÓN",fecha:"2026-02-25"}, catSemana:null, catMes:{distancia:31772,playerLoad:3744.1,velMax:31.2,mpm:61.2,hsr:313,sprint:0,sprintsN:14,acelsM:78,acelsH:39,decelsM:71,decelsH:38,sesiones:11}, catTemporada:{distancia:54088,playerLoad:6197.4,velMax:31.2,mpm:67.3,hsr:599,sprint:0,sprintsN:31,acelsM:118,acelsH:63,decelsM:113,decelsH:62,sesiones:18}, wys:null },
 ];
 
-const APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbw9145xXDiP7LYZcvIM8SX3M1T5J-3cT4wjsfRpow_1WYjIETMO5vn1VW4Zgou5vZR9/exec";
+const APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbwZ-Zz671qV0q9JOsz4lSTbpXh7kobm1yrIVxcLDmPQvi3RFwXaHlnVTGp28Ppv3UsD/exec";
 const GPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbykIhkZWn3CuYqETRgb9HQBR2dRBdj8r43b4czbTLQ-tDXRwDg6Q4WWVRJpKsmOqZ6hrQ/exec";
 
 const SEED_WELLNESS = [
@@ -1950,6 +1950,7 @@ export default function PerfLoad() {
     </div>
   );
 }
+
 
 
 
